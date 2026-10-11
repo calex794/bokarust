@@ -3,7 +3,7 @@ use leptos::mount::mount_to_body;
 use web_sys::HtmlTextAreaElement;
 use wasm_bindgen::JsCast;
 use gloo_net::http::Request;
-use editor_core::{Chapter,SaveChapter};
+use editor_core::{Chapter,SaveChapter,MAX_CHAPTER_CHARS,CHAPTER_LENGTH_ERROR};
 
 #[component]
 fn App() -> impl IntoView {
@@ -48,14 +48,14 @@ fn App() -> impl IntoView {
             if !native_undo {
                 let _=el.set_range_text_with_start_and_end_and_mode(&replacement,start,end,"select");
             }
-            set_dirty.set(true);set_text_len.set(el.text_length() as usize);set_edit_epoch.update(|n| *n += 1);
+            set_dirty.set(true);set_text_len.set(el.value().chars().count());set_edit_epoch.update(|n| *n += 1);
             let _=el.focus();
         }
     };
     let load=move || wasm_bindgen_futures::spawn_local(async move {
         match Request::get("/api/chapter").send().await {
             Ok(response)=>match response.json::<Chapter>().await {
-                Ok(doc)=>{set_title.set(doc.title);set_revision.set(doc.revision);if let Some(el)=textarea(){el.set_value(&doc.markdown);}set_text_len.set(doc.markdown.encode_utf16().count());set_dirty.set(false);set_message.set("Глава загружена".into());},
+                Ok(doc)=>{set_title.set(doc.title);set_revision.set(doc.revision);if let Some(el)=textarea(){el.set_value(&doc.markdown);}set_text_len.set(doc.markdown.chars().count());set_dirty.set(false);set_message.set("Глава загружена".into());},
                 Err(e)=>set_message.set(format!("Ошибка чтения: {e}"))
             },
             Err(e)=>set_message.set(format!("Ошибка подключения: {e}"))
@@ -66,6 +66,10 @@ fn App() -> impl IntoView {
         if busy.get_untracked(){return;}
         let Some(el)=textarea() else {return};
         let body=SaveChapter{title:title.get_untracked(),markdown:el.value(),expected_revision:revision.get_untracked()};
+        if body.markdown.chars().count() > MAX_CHAPTER_CHARS {
+            set_message.set(CHAPTER_LENGTH_ERROR.to_string());
+            return;
+        }
         let saving_epoch = edit_epoch.get_untracked();
         set_busy.set(true);
         wasm_bindgen_futures::spawn_local(async move {
@@ -89,8 +93,8 @@ fn App() -> impl IntoView {
             let mut sample=String::with_capacity(len*3);
             for _ in 0..(len/pattern_chars) {sample.push_str(pattern);}
             sample.extend(pattern.chars().take(len%pattern_chars));
-            let length_utf16=sample.encode_utf16().count();
-            el.set_value(&sample);set_text_len.set(length_utf16);set_dirty.set(true);
+            let chars=sample.chars().count();
+            el.set_value(&sample);set_text_len.set(chars);set_dirty.set(true);
             set_edit_epoch.update(|n| *n += 1);
             set_message.set(format!("Подготовлен образец: {len} символов. Сохранение — отдельно."));
         }
@@ -113,21 +117,24 @@ fn App() -> impl IntoView {
            <button type="button" on:click=move |_|set_mode.set(0)>"Текст"</button>
            <button type="button" on:click=move |_|{render_preview();set_mode.set(1)}>"Предпросмотр"</button>
            <button type="button" on:click=move |_|{render_preview();set_mode.set(2)}>"Два окна"</button>
+           <button type="button" on:click=move |_|make_sample(5_000)>"5 тыс."</button>
+           <button type="button" on:click=move |_|make_sample(10_000)>"10 тыс."</button>
            <button type="button" on:click=move |_|make_sample(20_000)>"20 тыс."</button>
+           <button type="button" on:click=move |_|make_sample(50_000)>"50 тыс."</button>
            <button type="button" on:click=move |_|make_sample(150_000)>"150 тыс."</button>
            <button type="button" on:click=move |_|make_sample(1_000_000)>"1 млн"</button>
-           <span class="muted">{move ||format!("Длина UTF-16: {}",text_len.get())}</span>
+           <span class=move || if text_len.get()>MAX_CHAPTER_CHARS {"error"} else {"muted"}>{move ||format!("Символов: {} из {}",text_len.get(),MAX_CHAPTER_CHARS)}</span>
          </div>
          <div class=move || if mode.get()==2 {"columns"} else {"columns single"}>
            <textarea node_ref=area style:display=move || if mode.get()==1 {"none"} else {"block"}
              aria-label="Текст главы"
-             on:input=move |_| {set_dirty.set(true);set_edit_epoch.update(|n| *n += 1);if let Some(el)=textarea(){set_text_len.set(el.text_length() as usize)}}
+             on:input=move |_| {set_dirty.set(true);set_edit_epoch.update(|n| *n += 1);if let Some(el)=textarea(){set_text_len.set(el.value().chars().count())}}
            ></textarea>
            <article class="preview" style:display=move ||if mode.get()==0 {"none"}else{"block"}
              inner_html=move ||preview.get()></article>
          </div>
-         <div class="row"><button class="primary" type="button" disabled=move ||busy.get() on:click=save>"Сохранить"</button><span aria-live="polite">{move ||message.get()}</span></div>
-         <p class="muted">"Проверочный прототип. Только локальный запуск, без входа пользователей и защиты данных."</p>
+         <div class="row"><button class="primary" type="button" disabled=move ||busy.get() || text_len.get()>MAX_CHAPTER_CHARS on:click=save>"Сохранить"</button><span aria-live="polite">{move ||message.get()}</span></div>
+         <p class="muted">"Обычная глава — 5–10 тыс. символов, максимум 50 тыс. Кнопки 150 тыс. и 1 млн — только для испытания нагрузки; такие тексты сохранить нельзя. Проверочный прототип для локального запуска."</p>
        </main>
       </div>
     }
