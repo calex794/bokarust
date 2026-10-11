@@ -1,0 +1,19 @@
+name: Rust editor
+on:
+  push:
+    branches: [main, feat/rust-chapter-editor-prototype]
+  pull_request:
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+          components: clippy, rustfmt
+      - run: cargo fmt --all
+      - run: cargo test --workspace
+      - run: cargo clippy -p editor-core -p editor-server --all-targets -- -D warnings
+      - uses: jetli/trunk-action@v0.5.1
+      - run: trunk build --release
