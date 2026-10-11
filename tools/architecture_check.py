@@ -7,6 +7,7 @@ while incomplete file-level Rust import analysis is not presented as proof.
 from __future__ import annotations
 
 import argparse
+import json
 import re
 import subprocess
 import sys
@@ -15,6 +16,8 @@ from collections import defaultdict
 from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
+
+from rust_module_graph import build_module_graph, graph_findings
 
 
 SOURCE_SUFFIXES = {".rs", ".js", ".ts", ".css"}
@@ -54,6 +57,16 @@ def validate_policy(policy: dict) -> list[Finding]:
         if not isinstance(warn, int) or not isinstance(block, int) or not 0 < warn < block:
             issues.append(Finding("BLOCK", "POLICY", "architecture/policy.toml",
                                   f"invalid {prefix} limits: {warn!r}/{block!r}"))
+    for prefix in ("fanout", "module_fanout"):
+        warn, block = limits.get(f"{prefix}_warn"), limits.get(f"{prefix}_block")
+        if not isinstance(warn, int) or not isinstance(block, int) or not 0 < warn < block:
+            issues.append(Finding("BLOCK", "POLICY", "architecture/policy.toml",
+                                  f"invalid {prefix} limits: {warn!r}/{block!r}"))
+    for path in policy.get("shared_modules", []):
+        if (not isinstance(path, str) or not path.startswith("crates/")
+                or "/src/" not in path or "*" in path):
+            issues.append(Finding("BLOCK", "POLICY", "architecture/policy.toml",
+                                  f"shared module path is too broad: {path!r}"))
     for name, kind in policy.get("packages", {}).items():
         if kind not in ALLOWED_KINDS:
             issues.append(Finding("BLOCK", "POLICY", name, f"unknown package kind {kind!r}"))
@@ -301,6 +314,7 @@ def main(argv: list[str] | None = None) -> int:
     group = parser.add_mutually_exclusive_group()
     group.add_argument("--all", action="store_true", help="check every tracked source file")
     group.add_argument("--base", help="compare PR changes to the merge base of this Git ref")
+    parser.add_argument("--module-report", type=Path, help="write Rust module impact JSON")
     args = parser.parse_args(argv)
     root = args.root.resolve()
     try:
@@ -311,6 +325,36 @@ def main(argv: list[str] | None = None) -> int:
         findings.extend(workflow_findings(root))
         package_findings, graph = workspace_findings(root, policy)
         findings.extend(package_findings)
+        rust_graph = build_module_graph(root)
+        findings.extend(Finding(item.severity, item.rule, item.path, item.detail)
+                        for item in graph_findings(rust_graph, policy))
+        unscanned = sorted(path for path in paths if path.endswith(".rs")
+                           and "/src/" in path and path not in rust_graph.dependencies)
+        for path in unscanned:
+            findings.append(Finding("WARN", "RUST_FILE_UNSCANNED", path,
+                                    "source file not found in declared module graph"))
+        impacted_modules = rust_graph.impacted(set(paths))
+        if args.module_report:
+            report = {
+                "scope": "explicit Rust mod/use and crate/self/super references; no macro expansion",
+                "modules_scanned": rust_graph.seen_modules,
+                "files_scanned": len(rust_graph.dependencies),
+                "files_changed": sorted(paths),
+                "impacted_rust_files": sorted(impacted_modules),
+                "unscanned_rust_files": unscanned,
+                "direct_dependencies": {
+                    name: sorted(targets)
+                    for name, targets in sorted(rust_graph.dependencies.items())
+                },
+                "direct_dependents": {
+                    name: sorted(users)
+                    for name, users in sorted(rust_graph.dependents().items())
+                },
+            }
+            output = root / args.module_report
+            output.parent.mkdir(parents=True, exist_ok=True)
+            output.write_text(json.dumps(report, ensure_ascii=False, indent=2) + "\n",
+                              encoding="utf-8")
         findings = exception_findings(findings, policy)
     except (OSError, RuntimeError, subprocess.TimeoutExpired, tomllib.TOMLDecodeError) as exc:
         print(f"BLOCK CHECKER_ERROR: {exc}", file=sys.stderr)
@@ -319,6 +363,10 @@ def main(argv: list[str] | None = None) -> int:
     for item in sorted(findings, key=lambda f: (f.severity != "BLOCK", f.rule, f.path)):
         print(item.render())
     count = sum(f.severity == "BLOCK" for f in findings)
+    print(f"Rust modules: {rust_graph.seen_modules} modules in "
+          f"{len(rust_graph.dependencies)} files; "
+          f"{sum(map(len, rust_graph.dependencies.values()))} direct imports; "
+          f"{len(impacted_modules)} impacted files.")
     print(f"Architecture: checked {len(paths)} changed/tracked paths; "
           f"{len(graph)} Rust packages; {count} blocking, "
           f"{sum(f.severity == 'WARN' for f in findings)} warnings.")
