@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+import json
 import sys
 import tempfile
 import unittest
 from datetime import date, timedelta
 from pathlib import Path
+from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "tools"))
 
@@ -142,6 +144,47 @@ class ArchitectureChecksTest(unittest.TestCase):
         items = checker.file_findings(self.root, ["../../outside.rs"], POLICY)
         self.assertIn("INVALID_PATH", self.codes(items))
 
+
+
+    def test_cli_reports_module_impact_on_changed_files(self) -> None:
+        self.write("architecture/policy.toml", """[limits]
+source_warn = 400
+source_block = 600
+test_warn = 800
+test_block = 1000
+fanout_warn = 8
+fanout_block = 15
+module_fanout_warn = 8
+module_fanout_block = 15
+[packages]
+site = "edge"
+""")
+        self.write("Cargo.toml", '[workspace]\nmembers=["crates/site"]\n')
+        self.write("crates/site/Cargo.toml",
+                   '[package]\nname="site"\nversion="0.1.0"\n')
+        self.write("crates/site/src/lib.rs", "mod books; mod money;\n")
+        self.write("crates/site/src/books.rs", "use crate::money::Ledger;\n")
+        self.write("crates/site/src/money.rs", "pub struct Ledger;\n")
+        with mock.patch.object(checker, "git_paths",
+                               return_value=["crates/site/src/money.rs"]):
+            exit_code = checker.main([
+                "--root", str(self.root), "--base", "origin/main",
+                "--module-report", "module-report.json",
+            ])
+        self.assertEqual(exit_code, 0)
+        report = json.loads((self.root / "module-report.json").read_text("utf-8"))
+        self.assertEqual(report["impacted_rust_files"], [
+            "crates/site/src/books.rs", "crates/site/src/money.rs"
+        ])
+        self.assertEqual(report["files_scanned"], 3)
+
+    def test_shared_module_exemptions_cannot_hide_whole_workspace(self) -> None:
+        policy = {**POLICY,
+                  "limits": {**POLICY["limits"],
+                             "module_fanout_warn": 8, "module_fanout_block": 15},
+                  "shared_modules": ["crates"]}
+        violations = checker.validate_policy(policy)
+        self.assertTrue(any(f.rule == "POLICY" for f in violations))
 
 if __name__ == "__main__":
     unittest.main()
