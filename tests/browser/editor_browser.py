@@ -70,6 +70,73 @@ def chrome_heap(page) -> dict:
         return {"js_heap_used_mb": None, "js_heap_total_mb": None}
 
 
+def keyboard_probe(page, selector: str, presses: int = 18) -> dict:
+    """Actual Playwright key presses, timed in the page from keydown to input and next frame."""
+    field = page.locator(selector)
+    field.evaluate(
+        """(el) => {
+          const records = [];
+          const onKey = (e) => {
+            if (e.key !== 'x') return;
+            const started = performance.now();
+            const entry = {start: started, input: null, frame: null};
+            records.push(entry);
+            requestAnimationFrame(() => {entry.frame = performance.now() - started;});
+          };
+          const onInput = () => {
+            const recent = records[records.length - 1];
+            if (recent && recent.input === null) {
+              recent.input = performance.now() - recent.start;
+            }
+          };
+          el.addEventListener('keydown', onKey);
+          el.addEventListener('input', onInput);
+          el.__stopKeyboardProbe = () => {
+            el.removeEventListener('keydown', onKey);
+            el.removeEventListener('input', onInput);
+            return records;
+          };
+          el.focus();
+          el.setSelectionRange(el.textLength, el.textLength);
+        }"""
+    )
+    for _ in range(presses):
+        page.keyboard.press("x")
+        page.evaluate("() => new Promise(resolve => requestAnimationFrame(resolve))")
+    rows = field.evaluate("(el) => el.__stopKeyboardProbe()")
+    assert len(rows) == presses, f"Expected {presses} keydown events, got {len(rows)}"
+    assert all(row["input"] is not None and row["frame"] is not None for row in rows), rows
+    return {
+        "keydown_to_input_ms": {
+            "p50": percentile([row["input"] for row in rows], .50),
+            "p95": percentile([row["input"] for row in rows], .95),
+        },
+        "keydown_to_frame_ms": {
+            "p50": percentile([row["frame"] for row in rows], .50),
+            "p95": percentile([row["frame"] for row in rows], .95),
+            "max": round(max(row["frame"] for row in rows), 3),
+        },
+        "presses": presses,
+    }
+
+
+def plain_textarea_probe(page, content: str, matching_width: float) -> dict:
+    """Browser-native baseline, without Rust, in the same browser and viewport."""
+    baseline = page.context.new_page()
+    try:
+        baseline.set_content(
+            "<style>*{box-sizing:border-box}textarea{display:block;height:70vh;"
+            "min-height:440px;padding:16px;font:16px/1.65 ui-monospace,monospace;"
+            "overflow:auto;overflow-wrap:anywhere;resize:vertical}</style>"
+            f'<textarea style="width:{matching_width}px"></textarea>'
+        )
+        baseline.locator("textarea").fill(content)
+        baseline.wait_for_timeout(150)
+        return keyboard_probe(baseline, "textarea")
+    finally:
+        baseline.close()
+
+
 def browser_benchmark(page, size: int, button: str, browser_name: str) -> dict:
     page.get_by_role("button", name=button, exact=True).click(timeout=90000)
     area = page.locator(SELECTOR)
@@ -81,51 +148,30 @@ def browser_benchmark(page, size: int, button: str, browser_name: str) -> dict:
     actual = area.input_value(timeout=90000)
     assert len(actual) == size, f"Sample has {len(actual)} code points, expected {size}"
     assert "世界" in actual and "🌍" in actual and "Тест" in actual
-    # Let rendering settle before measuring; do not measure one-time sample creation.
     page.wait_for_timeout(150)
     memory_before = child_browser_memory()
     heap_before = chrome_heap(page) if browser_name == "chromium" else {}
-    times = area.evaluate(
-        """async (el) => {
-          el.focus();
-          const dispatch = [], frame = [];
-          for (let i = 0; i < 25; i++) {
-            const start = performance.now();
-            const pos = el.textLength;
-            el.setRangeText('x', pos, pos, 'end');
-            el.dispatchEvent(new InputEvent('input', {
-              bubbles: true, data: 'x', inputType: 'insertText'
-            }));
-            dispatch.push(performance.now() - start);
-            await new Promise(resolve => requestAnimationFrame(resolve));
-            frame.push(performance.now() - start);
-          }
-          return { dispatch, frame, final_code_units: el.textLength };
-        }"""
-    )
-    assert area.input_value().endswith("x" * 25)
+    live_input = keyboard_probe(page, SELECTOR)
+    assert area.input_value().endswith("x" * 18)
     memory_after = child_browser_memory()
     heap_after = chrome_heap(page) if browser_name == "chromium" else {}
+    width = area.evaluate("(el) => el.getBoundingClientRect().width")
+    baseline = plain_textarea_probe(page, actual, width)
+    runtime_ms = live_input["keydown_to_frame_ms"]["p95"]
+    baseline_ms = baseline["keydown_to_frame_ms"]["p95"]
     result = {
         "requested_codepoints": size,
-        "input_event_dispatch_ms": {
-            "p50": percentile(times["dispatch"], .50),
-            "p95": percentile(times["dispatch"], .95),
-            "max": round(max(times["dispatch"]), 3),
-        },
-        "input_to_frame_ms": {
-            "p50": percentile(times["frame"], .50),
-            "p95": percentile(times["frame"], .95),
-            "max": round(max(times["frame"]), 3),
-        },
+        "method": "Real keyboard events from Playwright, timed in the browser from keydown to input/next frame",
+        "editor_keyboard": live_input,
+        "native_textarea_baseline": baseline,
+        "frame_p95_ratio_to_native": round(runtime_ms / baseline_ms, 2) if baseline_ms else None,
         "memory_before": {**memory_before, **heap_before},
         "memory_after": {**memory_after, **heap_after},
-        "utf16_after_insertions": times["final_code_units"],
     }
     print(
-        f"MEASURE {browser_name} {size} chars: dispatch p95={result['input_event_dispatch_ms']['p95']} ms, "
-        f"frame p95={result['input_to_frame_ms']['p95']} ms, "
-        f"browser USS={memory_after['browser_unique_mb']} MiB"
+        f"MEASURE {browser_name} {size} chars: keyboard-to-frame p95="
+        f"{runtime_ms} ms, plain textarea p95={baseline_ms} ms, "
+        f"browser USS={memory_after['browser_unique_mb']} MiB", flush=True
     )
     return result
 
