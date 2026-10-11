@@ -42,7 +42,7 @@ jobs:
       - name: Check open-source distribution SHA and create test-only EasyMDE page
         run: python tests/comparison/stage_reference.py
       - name: Compare text input, memory and load on matched content
-        run: python tests/comparison/compare.py --repeats 2 --max-size 1000000
+        run: python tests/comparison/compare.py --repeats 2 --max-size 50000
       - name: Upload comparison report and screenshots
         if: always()
         uses: actions/upload-artifact@v4

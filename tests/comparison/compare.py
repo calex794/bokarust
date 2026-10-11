@@ -3,7 +3,7 @@
 
 Fresh Chromium processes for each configuration, identical Markdown payload,
 viewport and font size. Results are saved even if one editor stalls/crashes.
-The reference script and CSS are copied, unmodified, from pinned booka source.
+Reference is the open-source EasyMDE 2.20.0 package with Booka toolbar options.
 """
 from __future__ import annotations
 
@@ -26,9 +26,9 @@ from playwright.sync_api import sync_playwright
 ROOT = Path(__file__).resolve().parents[2]
 OUTPUT = ROOT / "browser-reports" / "comparison"
 PATTERN = "Тест текста на русском языке. 世界 🌍\n"
-SIZES = ((20_000, "20 тыс."), (150_000, "150 тыс."), (1_000_000, "1 млн"))
+SIZES = ((5_000, "5 тыс."), (10_000, "10 тыс."), (20_000, "20 тыс."), (50_000, "50 тыс."), (150_000, "150 тыс."), (1_000_000, "1 млн"))
 ORIGINAL_SHA = "f19a7a20174cc2651d88c51123afb5f8e9093d4b"
-OLD_SCRIPT = "backend/app/web/static/js/chapter-editor-images.js"
+OLD_SCRIPT = "EasyMDE 2.20.0, with toolbar/settings based on chapter-editor-images.js"
 RUST_INPUT = 'textarea[aria-label="Текст главы"]'
 
 
@@ -396,7 +396,7 @@ def main() -> int:
             "measured_typing": "24 real Chromium keypresses, keydown to frame after textarea input / CodeMirror change",
             "memory": "USS across all Chromium processes spawned by Python test; each profile uses fresh browser process; unlike app-specific WASM/JS heap",
             "load_time": "Rust demo button also generates sample, while EasyMDE receives generated payload; do not interpret as strict like-for-like load speed",
-            "note": "isolated EasyMDE component with real Booka bundled JS/CSS; not the complete deployed NEwBOO site",
+            "note": "isolated official EasyMDE 2.20.0 with Booka-equivalent toolbar options, not byte-identical JavaScript or the deployed NEwBOO site",
         },
         "rows": rows,
         "summary": summarize(rows),
@@ -427,7 +427,7 @@ def main() -> int:
         "the incremental column in comparison.json excludes initial editor load. "
         "Results are CI observations, not forecasts for end-user devices.",
         "",
-        "The old editor uses the original EasyMDE bundle and original init script from booka, "
+        "The old editor uses the official EasyMDE 2.20.0 bundle and mirrored Booka settings, "
         "not a mock. The fixture does not include all other NEwBOO website modules.",
         "",
         "Rust sample generation time and EasyMDE replace-document time have different setup "
