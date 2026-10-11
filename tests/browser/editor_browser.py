@@ -8,12 +8,10 @@ import json
 import os
 import platform
 import socket
-import statistics
 import subprocess
 import sys
 import tempfile
 import time
-import traceback
 import urllib.request
 from pathlib import Path
 
@@ -130,7 +128,7 @@ def plain_textarea_probe(page, content: str, matching_width: float) -> dict:
             "overflow:auto;overflow-wrap:anywhere;resize:vertical}</style>"
             f'<textarea style="width:{matching_width}px"></textarea>'
         )
-        baseline.locator("textarea").fill(content)
+        baseline.locator("textarea").evaluate("(el, value) => { el.value = value; }", content)
         baseline.wait_for_timeout(150)
         return keyboard_probe(baseline, "textarea")
     finally:
@@ -195,12 +193,9 @@ def run_suite(browser_name: str) -> dict:
             print(f"PASS {name}", flush=True)
             return value
         except Exception as exc:
-            report["checks"][name] = {
-                "ok": False,
-                "error": f"{type(exc).__name__}: {exc}",
-            }
-            print(f"FAIL {name}: {exc}", flush=True)
-            traceback.print_exc()
+            short = str(exc).splitlines()[0][:320]
+            report["checks"][name] = {"ok": False, "error": f"{type(exc).__name__}: {short}"}
+            print(f"FAIL {name}: {short}", flush=True)
             return None
 
     def check_equal(actual, expected):
@@ -435,8 +430,9 @@ def main():
     try:
         result = run_suite(args.browser)
     except Exception as exc:
-        traceback.print_exc()
-        result = {"browser": args.browser, "fatal_error": repr(exc), "checks": {"setup": {"ok": False}}}
+        short = str(exc).splitlines()[0][:320]
+        print(f"FATAL {type(exc).__name__}: {short}", flush=True)
+        result = {"browser": args.browser, "fatal_error": short, "checks": {"setup": {"ok": False}}}
     output = REPORT_DIR / f"{args.browser}.json"
     output.write_text(json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8")
     failures = [name for name, item in result["checks"].items() if not item["ok"]]
