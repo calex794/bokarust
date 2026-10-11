@@ -17,18 +17,12 @@ jobs:
     steps:
       - name: Checkout new Rust editor
         uses: actions/checkout@v4
-      - name: Checkout pinned original Booka assets
-        uses: actions/checkout@v4
-        with:
-          repository: calex794/booka
-          ref: f19a7a20174cc2651d88c51123afb5f8e9093d4b
-          path: reference-booka
-          sparse-checkout: |
-            backend/app/web/static/vendor/easymde
-            backend/app/web/static/js/chapter-editor-images.js
-            backend/app/web/static/css/components/chapter-authoring.css
-          sparse-checkout-cone-mode: false
-          persist-credentials: false
+      - name: Stage official EasyMDE 2.20.0 distribution
+        run: |
+          mkdir -p reference-easymde-dist
+          cd reference-easymde-dist
+          npm pack easymde@2.20.0 --silent
+          tar -xzf easymde-2.20.0.tgz
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: wasm32-unknown-unknown
@@ -45,7 +39,7 @@ jobs:
         run: |
           python -m pip install "playwright==1.57.0" "psutil>=6,<8"
           python -m playwright install --with-deps chromium
-      - name: Check original asset SHA and create test-only EasyMDE page
+      - name: Check open-source distribution SHA and create test-only EasyMDE page
         run: python tests/comparison/stage_reference.py
       - name: Compare text input, memory and load on matched content
         run: python tests/comparison/compare.py --repeats 2 --max-size 1000000
