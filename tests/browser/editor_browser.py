@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import datetime as dt
+import hashlib
 import json
 import os
 import platform
@@ -548,6 +549,81 @@ def run_suite(browser_name: str) -> dict:
                     return True
 
                 check("two_tabs_stale_revision_409", stale_revision)
+
+                def markdown_whitespace_roundtrips_on_disk():
+                    endpoint = f"{url}/api/chapter"
+                    current = page.request.get(endpoint).json()
+                    title = current["title"]
+                    revision = current["revision"]
+                    # Leading indentation, trailing double spaces (Markdown hard
+                    # breaks), final blank lines, Cyrillic and emoji are all data.
+                    raw = "    код с отступом\n\nТекст с переносом  \n🌍\n\n"
+
+                    def save_text(markdown, expected_revision):
+                        response = page.request.put(
+                            endpoint,
+                            data=json.dumps(
+                                {"title": title, "markdown": markdown,
+                                 "expected_revision": expected_revision},
+                                ensure_ascii=False,
+                            ),
+                            headers={"Content-Type": "application/json"},
+                        )
+                        assert response.status == 200, (
+                            f"Expected 200, got {response.status}: {response.text()}"
+                        )
+                        return response.json()
+
+                    saved = save_text(raw, revision)
+                    check_equal(saved["markdown"], raw)
+                    check_equal(saved["revision"], revision + 1)
+                    check_equal(
+                        saved["content_hash"],
+                        hashlib.sha256(raw.encode("utf-8")).hexdigest(),
+                    )
+                    check_equal(page.request.get(endpoint).json()["markdown"], raw)
+                    disk = json.loads(
+                        (Path(directory) / "chapter.json").read_text(encoding="utf-8")
+                    )
+                    check_equal(disk["markdown"], raw)
+                    check_equal(disk["content_hash"], saved["content_hash"])
+
+                    # CRLF is equivalent only after line-ending normalization.
+                    same = save_text(raw.replace("\n", "\r\n"), saved["revision"])
+                    check_equal(same["revision"], saved["revision"])
+                    check_equal(same["markdown"], raw)
+                    repeated = save_text(raw, saved["revision"])
+                    check_equal(repeated["revision"], saved["revision"])
+
+                    changed = save_text(raw + " ", saved["revision"])
+                    check_equal(changed["markdown"], raw + " ")
+                    check_equal(changed["revision"], saved["revision"] + 1)
+                    assert changed["content_hash"] != saved["content_hash"]
+                    check_equal(
+                        json.loads((Path(directory) / "chapter.json").read_text(
+                            encoding="utf-8"
+                        ))["markdown"],
+                        raw + " ",
+                    )
+                    blank = page.request.put(
+                        endpoint,
+                        data=json.dumps(
+                            {"title": title, "markdown": "  \n  ",
+                             "expected_revision": changed["revision"]},
+                            ensure_ascii=False,
+                        ),
+                        headers={"Content-Type": "application/json"},
+                    )
+                    assert blank.status == 400
+                    check_equal(
+                        page.request.get(endpoint).json()["revision"],
+                        changed["revision"],
+                    )
+                    return True
+
+                check("markdown_whitespace_persisted_noop_and_versioning",
+                      markdown_whitespace_roundtrips_on_disk)
+
 
                 def mobile_layout():
                     mobile = browser.new_context(
