@@ -70,7 +70,7 @@ fn App() -> impl IntoView {
             set_preview.set(ammonia::clean(&html));
         }
     };
-    let edit = move |prefix: &'static str, suffix: &'static str| {
+    let edit: Rc<dyn Fn(&'static str, &'static str)> = Rc::new(move |prefix: &'static str, suffix: &'static str| {
         if !ready.get_untracked() { return; }
         if let Some(el)=textarea(){
             let start=el.selection_start().ok().flatten().unwrap_or(0);
@@ -94,7 +94,14 @@ fn App() -> impl IntoView {
             recount_after_format();
             let _=el.focus();
         }
-    };
+    });
+    let edit_bold = Rc::clone(&edit);
+    let edit_italic = Rc::clone(&edit);
+    let edit_heading = Rc::clone(&edit);
+    let edit_quote = Rc::clone(&edit);
+    let edit_list = Rc::clone(&edit);
+    let edit_link = Rc::clone(&edit);
+    let edit_image = Rc::clone(&edit);
     let load=move || {
         let load_epoch=edit_epoch.get_untracked();
         wasm_bindgen_futures::spawn_local(async move {
@@ -168,13 +175,13 @@ fn App() -> impl IntoView {
        <main class="form">
          <label>"Название главы"<input type="text" readonly=move || !ready.get() prop:value=move || title.get() on:input=move |ev| {set_title.set(event_target_value(&ev));set_dirty.set(true);set_edit_epoch.update(|n| *n += 1);}/></label>
          <div class="toolbar">
-           <button type="button" disabled=move || !ready.get() on:click=move |_| edit("**","**")>"Жирный"</button>
-           <button type="button" disabled=move || !ready.get() on:click=move |_| edit("*","*")>"Курсив"</button>
-           <button type="button" disabled=move || !ready.get() on:click=move |_| edit("## ","")>"Заголовок"</button>
-           <button type="button" disabled=move || !ready.get() on:click=move |_| edit("> ","")>"Цитата"</button>
-           <button type="button" disabled=move || !ready.get() on:click=move |_| edit("- ","")>"Список"</button>
-           <button type="button" disabled=move || !ready.get() on:click=move |_| edit("[","](https://example.com)")>"Ссылка"</button>
-           <button type="button" disabled=move || !ready.get() on:click=move |_| edit("![","](https://example.com/image.png)")>"Изображение"</button>
+           <button type="button" disabled=move || !ready.get() on:click=move |_| edit_bold("**","**")>"Жирный"</button>
+           <button type="button" disabled=move || !ready.get() on:click=move |_| edit_italic("*","*")>"Курсив"</button>
+           <button type="button" disabled=move || !ready.get() on:click=move |_| edit_heading("## ","")>"Заголовок"</button>
+           <button type="button" disabled=move || !ready.get() on:click=move |_| edit_quote("> ","")>"Цитата"</button>
+           <button type="button" disabled=move || !ready.get() on:click=move |_| edit_list("- ","")>"Список"</button>
+           <button type="button" disabled=move || !ready.get() on:click=move |_| edit_link("[","](https://example.com)")>"Ссылка"</button>
+           <button type="button" disabled=move || !ready.get() on:click=move |_| edit_image("![","](https://example.com/image.png)")>"Изображение"</button>
          </div>
          <div class="row">
            <button type="button" disabled=move || !ready.get() on:click=move |_|set_mode.set(0)>"Текст"</button>
