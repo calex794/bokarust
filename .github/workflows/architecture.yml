@@ -31,7 +31,14 @@ jobs:
           BASE_BRANCH: ${{ github.base_ref }}
         run: |
           if [ -n "$BASE_BRANCH" ]; then
-            python tools/architecture_check.py --base "origin/$BASE_BRANCH"
+            python tools/architecture_check.py --base "origin/$BASE_BRANCH" --module-report .repo-check/rust-module-impact.json
           else
-            python tools/architecture_check.py --all
+            python tools/architecture_check.py --all --module-report .repo-check/rust-module-impact.json
           fi
+      - name: Save Rust dependency report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: rust-module-impact
+          path: .repo-check/rust-module-impact.json
+          if-no-files-found: warn
