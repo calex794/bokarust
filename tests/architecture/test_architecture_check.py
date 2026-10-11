@@ -116,6 +116,40 @@ class ArchitectureChecksTest(unittest.TestCase):
                    "    timeout-minutes: 10\n")
         self.assertEqual(self.codes(checker.workflow_findings(self.root)), set())
 
+    def test_nightly_audit_has_a_separate_finite_budget(self) -> None:
+        nightly = (".github/workflows/rust-full-audit.yml")
+        self.write(nightly, """name: Full Rust audit
+on:
+  schedule:
+    - cron: "15 3 * * *"
+jobs:
+  full-rust:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+""")
+        self.assertNotIn("JOB_TIMEOUT", self.codes(checker.workflow_findings(self.root)))
+        self.write(nightly, """name: Full Rust audit
+on:
+  pull_request:
+  schedule:
+    - cron: "15 3 * * *"
+jobs:
+  full-rust:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+""")
+        self.assertIn("JOB_TIMEOUT", self.codes(checker.workflow_findings(self.root)))
+        self.write(nightly, """name: Full Rust audit
+on:
+  schedule:
+    - cron: "15 3 * * *"
+jobs:
+  full-rust:
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+""")
+        self.assertIn("JOB_TIMEOUT", self.codes(checker.workflow_findings(self.root)))
+
     def test_exact_exception_requires_reason_and_expiry(self) -> None:
         offending = checker.Finding("BLOCK", "FILE_SIZE", "src/lib.rs", "700 lines")
         deadline = date.today() + timedelta(days=7)

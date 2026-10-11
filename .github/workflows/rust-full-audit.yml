@@ -1,0 +1,38 @@
+name: Rust full test audit
+
+on:
+  schedule:
+    - cron: "15 3 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: rust-full-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  full-rust:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+      - name: Verify formatting
+        run: cargo fmt --all -- --check
+      - name: Verify all Rust targets
+        run: cargo clippy --workspace --all-targets -- -D warnings
+      - name: Install Nextest
+        uses: taiki-e/install-action@fa0dd4cd0a40696e6f9766370614a5ce482e6aa8 # v2.77.5
+        with:
+          tool: nextest
+      - name: Full Rust suite with finite deadlines
+        run: cargo nextest run --workspace --profile nightly
+      - name: Documentation tests
+        run: timeout --signal=TERM --kill-after=5s 180s cargo test --workspace --doc
