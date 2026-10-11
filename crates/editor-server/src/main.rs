@@ -1,4 +1,4 @@
-use axum::{extract::State, http::StatusCode, routing::get, Json, Router};
+use axum::{extract::{State, DefaultBodyLimit}, http::StatusCode, routing::get, Json, Router};
 use editor_core::{Chapter, SaveChapter};
 use std::{sync::Arc, path::PathBuf};
 use tokio::sync::Mutex;
@@ -38,7 +38,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         Err(e) => return Err(e.into()),
     };
     let state = AppState { chapter:Arc::new(Mutex::new(chapter)),file };
-    let app = Router::new().route("/api/chapter",get(read).put(save))
+    let app = Router::new().route("/api/chapter",get(read).put(save)).layer(DefaultBodyLimit::max(editor_core::MAX_TEXT_BYTES + 1024 * 1024))
         .fallback_service(ServeDir::new("dist")).with_state(state)
         .layer(CorsLayer::permissive());
     let port = std::env::var("PORT").unwrap_or_else(|_| "8080".into());
