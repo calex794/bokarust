@@ -3,6 +3,8 @@ use leptos::mount::mount_to_body;
 use web_sys::HtmlTextAreaElement;
 use wasm_bindgen::JsCast;
 use gloo_net::http::Request;
+use gloo_timers::callback::Timeout;
+use std::{cell::RefCell, rc::Rc};
 use editor_core::{Chapter,SaveChapter,MAX_CHAPTER_CHARS,CHAPTER_LENGTH_ERROR};
 
 #[component]
@@ -12,11 +14,16 @@ fn App() -> impl IntoView {
     let (revision,set_revision)=signal(0u64);
     let (dirty,set_dirty)=signal(false);
     let (busy,set_busy)=signal(false);
+    let (ready,set_ready)=signal(false);
+    let (count_pending,set_count_pending)=signal(false);
     let (message,set_message)=signal("Загрузка...".to_string());
     let (preview,set_preview)=signal(String::new());
     let (mode,set_mode)=signal(0u8);
     let (text_len,set_text_len)=signal(0usize);
     let (edit_epoch,set_edit_epoch)=signal(0u64);
+    // A pending timer is cancelled when another character arrives.
+    let count_timer: Rc<RefCell<Option<Timeout>>> = Rc::new(RefCell::new(None));
+    let count_timer_for_input = Rc::clone(&count_timer);
 
     let textarea = move || area.get().map(|el| <_ as AsRef<HtmlTextAreaElement>>::as_ref(&el).clone());
     let render_preview = move || {
@@ -29,6 +36,7 @@ fn App() -> impl IntoView {
         }
     };
     let edit = move |prefix: &'static str, suffix: &'static str| {
+        if !ready.get_untracked() { return; }
         if let Some(el)=textarea(){
             let start=el.selection_start().ok().flatten().unwrap_or(0);
             let end=el.selection_end().ok().flatten().unwrap_or(start);
@@ -52,21 +60,40 @@ fn App() -> impl IntoView {
             let _=el.focus();
         }
     };
-    let load=move || wasm_bindgen_futures::spawn_local(async move {
-        match Request::get("/api/chapter").send().await {
-            Ok(response)=>match response.json::<Chapter>().await {
-                Ok(doc)=>{set_title.set(doc.title);set_revision.set(doc.revision);if let Some(el)=textarea(){el.set_value(&doc.markdown);}set_text_len.set(doc.markdown.chars().count());set_dirty.set(false);set_message.set("Глава загружена".into());},
-                Err(e)=>set_message.set(format!("Ошибка чтения: {e}"))
-            },
-            Err(e)=>set_message.set(format!("Ошибка подключения: {e}"))
-        };
-    });
+    let load=move || {
+        let load_epoch=edit_epoch.get_untracked();
+        wasm_bindgen_futures::spawn_local(async move {
+            match Request::get("/api/chapter").send().await {
+                Ok(response) => match response.json::<Chapter>().await {
+                    Ok(doc) => {
+                        // Never replace a local edit with a late network response.
+                        // The form remains read-only until the document is authoritative.
+                        if edit_epoch.get_untracked()!=load_epoch {
+                            set_message.set("Текст изменился во время загрузки. Мы не перезаписали его; скопируйте свои изменения и обновите страницу.".into());
+                            return;
+                        }
+                        set_title.set(doc.title);
+                        set_revision.set(doc.revision);
+                        if let Some(el)=textarea(){el.set_value(&doc.markdown);}
+                        set_text_len.set(doc.markdown.chars().count());
+                        set_dirty.set(false);
+                        set_ready.set(true);
+                        set_message.set("Глава загружена".into());
+                    }
+                    Err(e) => set_message.set(format!("Ошибка чтения: {e}")),
+                },
+                Err(e) => set_message.set(format!("Ошибка подключения: {e}")),
+            }
+        });
+    };
     Effect::new(move |_| {load();});
     let save=move |_| {
-        if busy.get_untracked(){return;}
+        if busy.get_untracked() || !ready.get_untracked(){return;}
         let Some(el)=textarea() else {return};
         let body=SaveChapter{title:title.get_untracked(),markdown:el.value(),expected_revision:revision.get_untracked()};
-        if body.markdown.chars().count() > MAX_CHAPTER_CHARS {
+        let exact_char_count=body.markdown.chars().count();
+        set_text_len.set(exact_char_count);
+        if exact_char_count > MAX_CHAPTER_CHARS {
             set_message.set(CHAPTER_LENGTH_ERROR.to_string());
             return;
         }
@@ -87,6 +114,7 @@ fn App() -> impl IntoView {
         });
     };
     let make_sample=move |len:usize| {
+        if !ready.get_untracked() { return; }
         if let Some(el)=textarea(){
             let pattern="Тест текста на русском языке. 世界 🌍\n";
             let pattern_chars=pattern.chars().count();
@@ -103,37 +131,50 @@ fn App() -> impl IntoView {
       <div class="shell">
        <header class="top"><h1>"BookaRust — редактор главы"</h1><span class="muted">{move || if dirty.get() {"● Не сохранено"} else {"✓ Без изменений"}}</span></header>
        <main class="form">
-         <label>"Название главы"<input type="text" prop:value=move || title.get() on:input=move |ev| {set_title.set(event_target_value(&ev));set_dirty.set(true);set_edit_epoch.update(|n| *n += 1);}/></label>
+         <label>"Название главы"<input type="text" readonly=move || !ready.get() prop:value=move || title.get() on:input=move |ev| {set_title.set(event_target_value(&ev));set_dirty.set(true);set_edit_epoch.update(|n| *n += 1);}/></label>
          <div class="toolbar">
-           <button type="button" on:click=move |_| edit("**","**")>"Жирный"</button>
-           <button type="button" on:click=move |_| edit("*","*")>"Курсив"</button>
-           <button type="button" on:click=move |_| edit("## ","")>"Заголовок"</button>
-           <button type="button" on:click=move |_| edit("> ","")>"Цитата"</button>
-           <button type="button" on:click=move |_| edit("- ","")>"Список"</button>
-           <button type="button" on:click=move |_| edit("[","](https://example.com)")>"Ссылка"</button>
-           <button type="button" on:click=move |_| edit("![","](https://example.com/image.png)")>"Изображение"</button>
+           <button type="button" disabled=move || !ready.get() on:click=move |_| edit("**","**")>"Жирный"</button>
+           <button type="button" disabled=move || !ready.get() on:click=move |_| edit("*","*")>"Курсив"</button>
+           <button type="button" disabled=move || !ready.get() on:click=move |_| edit("## ","")>"Заголовок"</button>
+           <button type="button" disabled=move || !ready.get() on:click=move |_| edit("> ","")>"Цитата"</button>
+           <button type="button" disabled=move || !ready.get() on:click=move |_| edit("- ","")>"Список"</button>
+           <button type="button" disabled=move || !ready.get() on:click=move |_| edit("[","](https://example.com)")>"Ссылка"</button>
+           <button type="button" disabled=move || !ready.get() on:click=move |_| edit("![","](https://example.com/image.png)")>"Изображение"</button>
          </div>
          <div class="row">
-           <button type="button" on:click=move |_|set_mode.set(0)>"Текст"</button>
-           <button type="button" on:click=move |_|{render_preview();set_mode.set(1)}>"Предпросмотр"</button>
-           <button type="button" on:click=move |_|{render_preview();set_mode.set(2)}>"Два окна"</button>
-           <button type="button" on:click=move |_|make_sample(5_000)>"5 тыс."</button>
-           <button type="button" on:click=move |_|make_sample(10_000)>"10 тыс."</button>
-           <button type="button" on:click=move |_|make_sample(20_000)>"20 тыс."</button>
-           <button type="button" on:click=move |_|make_sample(50_000)>"50 тыс."</button>
-           <button type="button" on:click=move |_|make_sample(150_000)>"150 тыс."</button>
-           <button type="button" on:click=move |_|make_sample(1_000_000)>"1 млн"</button>
-           <span class=move || { if text_len.get() > MAX_CHAPTER_CHARS { "error" } else { "muted" } }>{move ||format!("Символов: {} из {}",text_len.get(),MAX_CHAPTER_CHARS)}</span>
+           <button type="button" disabled=move || !ready.get() on:click=move |_|set_mode.set(0)>"Текст"</button>
+           <button type="button" disabled=move || !ready.get() on:click=move |_|{render_preview();set_mode.set(1)}>"Предпросмотр"</button>
+           <button type="button" disabled=move || !ready.get() on:click=move |_|{render_preview();set_mode.set(2)}>"Два окна"</button>
+           <button type="button" disabled=move || !ready.get() on:click=move |_|make_sample(5_000)>"5 тыс."</button>
+           <button type="button" disabled=move || !ready.get() on:click=move |_|make_sample(10_000)>"10 тыс."</button>
+           <button type="button" disabled=move || !ready.get() on:click=move |_|make_sample(20_000)>"20 тыс."</button>
+           <button type="button" disabled=move || !ready.get() on:click=move |_|make_sample(50_000)>"50 тыс."</button>
+           <button type="button" disabled=move || !ready.get() on:click=move |_|make_sample(150_000)>"150 тыс."</button>
+           <button type="button" disabled=move || !ready.get() on:click=move |_|make_sample(1_000_000)>"1 млн"</button>
+           <span class=move || { if text_len.get() > MAX_CHAPTER_CHARS && !count_pending.get() { "error" } else { "muted" } }>{move || if count_pending.get() { "Подсчёт символов…".to_string() } else { format!("Символов: {} из {}",text_len.get(),MAX_CHAPTER_CHARS) }}</span>
          </div>
          <div class=move || if mode.get()==2 {"columns"} else {"columns single"}>
-           <textarea node_ref=area style:display=move || if mode.get()==1 {"none"} else {"block"}
+           <textarea node_ref=area readonly=move || !ready.get() style:display=move || if mode.get()==1 {"none"} else {"block"}
              aria-label="Текст главы"
-             on:input=move |_| {set_dirty.set(true);set_edit_epoch.update(|n| *n += 1);if let Some(el)=textarea(){set_text_len.set(el.value().chars().count())}}
+             on:input=move |_| {
+                // Hot path is O(1) in chapter length: the browser owns the text.
+                set_dirty.set(true);
+                set_edit_epoch.update(|n| *n += 1);
+                if !count_pending.get_untracked() {set_count_pending.set(true);}
+                count_timer_for_input.borrow_mut().take();
+                let timer=Timeout::new(300, move || {
+                    if let Some(el)=textarea() {
+                        set_text_len.set(el.value().chars().count());
+                    }
+                    set_count_pending.set(false);
+                });
+                count_timer_for_input.borrow_mut().replace(timer);
+             }
            ></textarea>
            <article class="preview" style:display=move ||if mode.get()==0 {"none"}else{"block"}
              inner_html=move ||preview.get()></article>
          </div>
-         <div class="row"><button class="primary" type="button" disabled=move || { busy.get() || (text_len.get() > MAX_CHAPTER_CHARS) } on:click=save>"Сохранить"</button><span aria-live="polite">{move ||message.get()}</span></div>
+         <div class="row"><button class="primary" type="button" disabled=move || { !ready.get() || busy.get() || (text_len.get() > MAX_CHAPTER_CHARS && !count_pending.get()) } on:click=save>"Сохранить"</button><span aria-live="polite">{move ||message.get()}</span></div>
          <p class="muted">"Обычная глава — 5–10 тыс. символов, максимум 50 тыс. Кнопки 150 тыс. и 1 млн — только для испытания нагрузки; такие тексты сохранить нельзя. Проверочный прототип для локального запуска."</p>
        </main>
       </div>

@@ -240,6 +240,97 @@ def run_suite(browser_name: str) -> dict:
                     ),
                     check_equal(page.locator(SELECTOR).input_value().splitlines()[0], "Первый абзац."),
                 ))
+                def check_loading_read_only_and_late_response():
+                    # Delay fetch in the page itself, without pausing Playwright.
+                    delayed = context.new_page()
+                    delayed.add_init_script("""(() => {
+                      const originalFetch = window.fetch.bind(window);
+                      window.fetch = (input, init) => {
+                        const name = typeof input === 'string' ? input : input.url;
+                        if (!name.endsWith('/api/chapter')) {
+                          return originalFetch(input, init);
+                        }
+                        return new Promise((resolve, reject) => {
+                          window.__releaseChapter = () => originalFetch(input, init).then(resolve, reject);
+                        });
+                      };
+                    })()""")
+                    try:
+                        delayed.goto(url, wait_until="domcontentloaded")
+                        delayed.wait_for_function("() => typeof window.__releaseChapter === 'function'", timeout=90000)
+                        area = delayed.locator(SELECTOR)
+                        assert not area.is_editable(), "Textarea must be read-only while loading"
+                        assert not delayed.get_by_label("Название главы").is_editable()
+                        assert delayed.get_by_role("button", name="Сохранить", exact=True).is_disabled()
+                        assert delayed.get_by_role("button", name="5 тыс.", exact=True).is_disabled()
+                        # Even a script-created input event cannot be overwritten by a late response.
+                        area.evaluate("""(el) => {
+                          el.value = 'Локальный текст до ответа';
+                          el.dispatchEvent(new InputEvent('input', {bubbles:true}));
+                        }""")
+                        delayed.evaluate("() => window.__releaseChapter()")
+                        delayed.wait_for_function(
+                            "() => document.body.innerText.includes('Текст изменился во время загрузки')",
+                            timeout=30000
+                        )
+                        check_equal(area.input_value(), "Локальный текст до ответа")
+                        assert not area.is_editable()
+                        assert delayed.get_by_role("button", name="Сохранить", exact=True).is_disabled()
+                    finally:
+                        delayed.close()
+                    fresh = context.new_page()
+                    try:
+                        fresh.goto(url, wait_until="domcontentloaded")
+                        fresh.wait_for_function(
+                            "() => document.body.innerText.includes('Глава загружена')",
+                            timeout=90000
+                        )
+                        assert fresh.locator(SELECTOR).is_editable()
+                        assert fresh.get_by_role("button", name="5 тыс.", exact=True).is_enabled()
+                    finally:
+                        fresh.close()
+                    return True
+
+                check("late_load_never_erases_user_input", check_loading_read_only_and_late_response)
+
+                def check_no_full_text_read_during_input():
+                    area = page.locator(SELECTOR)
+                    sample = "Я" * 10_000 + "🌍"
+                    area.fill(sample)
+                    page.wait_for_function(
+                        "() => document.body.innerText.includes('Символов: 10001 из 50000')",
+                        timeout=30000
+                    )
+                    # Intercept the DOM value getter. Input must not cross the
+                    # JS-WASM string boundary until the debounce timer fires.
+                    immediate = area.evaluate("""(el) => {
+                      const descriptor = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value');
+                      let reads = 0;
+                      Object.defineProperty(el, 'value', {
+                        configurable: true,
+                        get() { reads++; return descriptor.get.call(this); },
+                        set(v) { descriptor.set.call(this, v); }
+                      });
+                      window.__chapterValueReads = () => reads;
+                      el.value = el.value + 'а';
+                      reads = 0;
+                      el.dispatchEvent(new InputEvent('input', {bubbles:true, data:'а', inputType:'insertText'}));
+                      return reads;
+                    }""")
+                    check_equal(immediate, 0)
+                    page.wait_for_function(
+                        "() => document.body.innerText.includes('Символов: 10002 из 50000')",
+                        timeout=30000
+                    )
+                    # Exactly one later read is enough for a Unicode-safe count.
+                    reads = page.evaluate("() => window.__chapterValueReads()")
+                    check_equal(reads, 1)
+                    area.evaluate("(el) => delete el.value")
+                    assert page.get_by_role("button", name="Сохранить", exact=True).is_enabled()
+                    return True
+
+                check("one_debounced_full_read_not_one_per_keystroke", check_no_full_text_read_during_input)
+
                 for size, label in ((5_000, "5 тыс."), (10_000, "10 тыс."), (20_000, "20 тыс."), (50_000, "50 тыс."), (150_000, "150 тыс."), (1_000_000, "1 млн")):
                     data = check(
                         f"input_memory_{size}",
