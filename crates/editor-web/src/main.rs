@@ -1,3 +1,4 @@
+mod preview;
 use leptos::prelude::*;
 use leptos::mount::mount_to_body;
 use web_sys::HtmlTextAreaElement;
@@ -42,18 +43,39 @@ fn App() -> impl IntoView {
     let (count_pending,set_count_pending)=signal(false);
     let (message,set_message)=signal("Загрузка...".to_string());
     let (preview,set_preview)=signal(String::new());
+    let (preview_render_count,set_preview_render_count)=signal(0u64);
     let (mode,set_mode)=signal(0u8);
     let (text_len,set_text_len)=signal(0usize);
     let (edit_epoch,set_edit_epoch)=signal(0u64);
+    // Title edits do not change Markdown, so they must not invalidate its preview.
+    let (content_epoch,set_content_epoch)=signal(0u64);
+    let rendered_epoch: Rc<RefCell<Option<u64>>> = Rc::new(RefCell::new(None));
+    let cache_for_render=Rc::clone(&rendered_epoch);
+    let render_markdown: Rc<dyn Fn(&str,u64)> = Rc::new(move |markdown,epoch| {
+        if *cache_for_render.borrow()==Some(epoch) { return; }
+        set_preview.set(preview::render_safe_markdown(markdown));
+        *cache_for_render.borrow_mut()=Some(epoch);
+        set_preview_render_count.update(|n| *n += 1);
+    });
+    let render_for_debounce=Rc::clone(&render_markdown);
+    let render_for_click=Rc::clone(&render_markdown);
+    let cache_for_click=Rc::clone(&rendered_epoch);
     // A pending timer is cancelled when another character arrives.
     let count_timer: Rc<RefCell<Option<Timeout>>> = Rc::new(RefCell::new(None));
     let textarea = move || area.get().map(|el| <_ as AsRef<HtmlTextAreaElement>>::as_ref(&el).clone());
     let recount: Rc<dyn Fn()> = Rc::new(move || {
         if !count_pending.get_untracked() { set_count_pending.set(true); }
         count_timer.borrow_mut().take();
+        let render_for_idle=Rc::clone(&render_for_debounce);
         let timer = Timeout::new(300, move || {
             if let Some(el) = textarea() {
-                set_text_len.set(el.value().chars().count());
+                // Reuse this single DOM->WASM read for both the Unicode
+                // character count and live side-by-side preview.
+                let markdown=el.value();
+                set_text_len.set(markdown.chars().count());
+                if mode.get_untracked()==2 {
+                    render_for_idle(&markdown,content_epoch.get_untracked());
+                }
             }
             set_count_pending.set(false);
         });
@@ -61,15 +83,17 @@ fn App() -> impl IntoView {
     });
     let recount_after_format = Rc::clone(&recount);
     let recount_after_input = Rc::clone(&recount);
-    let render_preview = move || {
+    let render_preview: Rc<dyn Fn()> = Rc::new(move || {
+        let epoch=content_epoch.get_untracked();
+        // On a cache hit avoid even reading the chapter from the DOM.
+        if *cache_for_click.borrow()==Some(epoch) { return; }
         if let Some(el)=textarea() {
-            let text=el.value();
-            let parser=pulldown_cmark::Parser::new_ext(&text, pulldown_cmark::Options::all());
-            let mut html=String::new();
-            pulldown_cmark::html::push_html(&mut html,parser);
-            set_preview.set(ammonia::clean(&html));
+            let markdown=el.value();
+            render_for_click(&markdown,epoch);
         }
-    };
+    });
+    let render_preview_single=Rc::clone(&render_preview);
+    let render_preview_split=Rc::clone(&render_preview);
     let edit: Rc<dyn Fn(&'static str, &'static str)> = Rc::new(move |prefix: &'static str, suffix: &'static str| {
         if !ready.get_untracked() { return; }
         if let Some(el)=textarea(){
@@ -91,6 +115,7 @@ fn App() -> impl IntoView {
             if !inserted { return; }
             set_dirty.set(true);
             set_edit_epoch.update(|n| *n += 1);
+            set_content_epoch.update(|n| *n += 1);
             recount_after_format();
             let _=el.focus();
         }
@@ -166,6 +191,7 @@ fn App() -> impl IntoView {
             let chars=sample.chars().count();
             el.set_value(&sample);set_text_len.set(chars);set_dirty.set(true);
             set_edit_epoch.update(|n| *n += 1);
+            set_content_epoch.update(|n| *n += 1);
             set_message.set(format!("Подготовлен образец: {len} символов. Сохранение — отдельно."));
         }
     };
@@ -185,8 +211,8 @@ fn App() -> impl IntoView {
          </div>
          <div class="row">
            <button type="button" disabled=move || !ready.get() on:click=move |_|set_mode.set(0)>"Текст"</button>
-           <button type="button" disabled=move || !ready.get() on:click=move |_|{render_preview();set_mode.set(1)}>"Предпросмотр"</button>
-           <button type="button" disabled=move || !ready.get() on:click=move |_|{render_preview();set_mode.set(2)}>"Два окна"</button>
+           <button type="button" disabled=move || !ready.get() on:click=move |_|{render_preview_single();set_mode.set(1)}>"Предпросмотр"</button>
+           <button type="button" disabled=move || !ready.get() on:click=move |_|{render_preview_split();set_mode.set(2)}>"Два окна"</button>
            <button type="button" disabled=move || !ready.get() on:click=move |_|make_sample(5_000)>"5 тыс."</button>
            <button type="button" disabled=move || !ready.get() on:click=move |_|make_sample(10_000)>"10 тыс."</button>
            <button type="button" disabled=move || !ready.get() on:click=move |_|make_sample(20_000)>"20 тыс."</button>
@@ -202,10 +228,12 @@ fn App() -> impl IntoView {
                 // Hot path is O(1) in chapter length: the browser owns the text.
                 set_dirty.set(true);
                 set_edit_epoch.update(|n| *n += 1);
+                set_content_epoch.update(|n| *n += 1);
                 recount_after_input();
              }
            ></textarea>
            <article class="preview" style:display=move ||if mode.get()==0 {"none"}else{"block"}
+             attr:data-render-count=move ||preview_render_count.get().to_string()
              inner_html=move ||preview.get()></article>
          </div>
          <div class="row"><button class="primary" type="button" disabled=move || { !ready.get() || busy.get() || (text_len.get() > MAX_CHAPTER_CHARS && !count_pending.get()) } on:click=save>"Сохранить"</button><span aria-live="polite">{move ||message.get()}</span></div>

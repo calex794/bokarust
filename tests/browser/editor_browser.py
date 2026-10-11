@@ -18,6 +18,7 @@ from pathlib import Path
 
 import psutil
 from playwright.sync_api import sync_playwright
+from preview_checks import run_preview_checks
 
 ROOT = Path(__file__).resolve().parents[2]
 REPORT_DIR = ROOT / "browser-reports"
@@ -529,6 +530,7 @@ def run_suite(browser_name: str) -> dict:
                     return True
 
                 check("markdown_preview_sanitizes_html", preview_security)
+                run_preview_checks(check, context, url, SELECTOR, report)
 
                 def stale_revision():
                     page.get_by_role("button", name="Сохранить", exact=True).click()
