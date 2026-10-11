@@ -96,13 +96,16 @@ def workspace(root: Path) -> tuple[dict[str, Path], dict[str, set[str]]]:
                     if not isinstance(raw, dict):
                         continue
                     spec = raw
+                    relative_to = path.parent
                     if spec.get("workspace") is True:
                         spec = ws_dependencies.get(alias)
                         if not isinstance(spec, dict):
                             continue  # An inherited external crate is not a local dependency.
+                        # [workspace.dependencies] paths are relative to the root Cargo.toml.
+                        relative_to = root
                     if "path" not in spec:
                         continue
-                    dependency_dir = (path.parent / spec["path"]).resolve()
+                    dependency_dir = (relative_to / spec["path"]).resolve()
                     dependency_name = by_directory.get(dependency_dir)
                     if dependency_name is None:
                         raise ValueError(
