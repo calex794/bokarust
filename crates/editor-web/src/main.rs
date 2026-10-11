@@ -16,7 +16,7 @@ fn App() -> impl IntoView {
     let (mode,set_mode)=signal(0u8);
     let (text_len,set_text_len)=signal(0usize);
 
-    let textarea = move || area.get().map(|el| el.as_ref().clone().unchecked_into::<HtmlTextAreaElement>());
+    let textarea = move || area.get().map(|el| <_ as AsRef<HtmlTextAreaElement>>::as_ref(&el).clone());
     let render_preview = move || {
         if let Some(el)=textarea() {
             let text=el.value();
@@ -117,5 +117,4 @@ fn App() -> impl IntoView {
       </div>
     }
 }
-use wasm_bindgen::JsCast;
 fn main(){mount_to_body(App)}
