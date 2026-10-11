@@ -57,6 +57,16 @@ def validate_policy(policy: dict) -> list[Finding]:
         if not isinstance(warn, int) or not isinstance(block, int) or not 0 < warn < block:
             issues.append(Finding("BLOCK", "POLICY", "architecture/policy.toml",
                                   f"invalid {prefix} limits: {warn!r}/{block!r}"))
+    for prefix in ("fanout", "module_fanout"):
+        warn, block = limits.get(f"{prefix}_warn"), limits.get(f"{prefix}_block")
+        if not isinstance(warn, int) or not isinstance(block, int) or not 0 < warn < block:
+            issues.append(Finding("BLOCK", "POLICY", "architecture/policy.toml",
+                                  f"invalid {prefix} limits: {warn!r}/{block!r}"))
+    for path in policy.get("shared_modules", []):
+        if (not isinstance(path, str) or not path.startswith("crates/")
+                or "/src/" not in path or "*" in path):
+            issues.append(Finding("BLOCK", "POLICY", "architecture/policy.toml",
+                                  f"shared module path is too broad: {path!r}"))
     for name, kind in policy.get("packages", {}).items():
         if kind not in ALLOWED_KINDS:
             issues.append(Finding("BLOCK", "POLICY", name, f"unknown package kind {kind!r}"))
