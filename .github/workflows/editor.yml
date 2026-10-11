@@ -17,3 +17,34 @@ jobs:
       - run: cargo clippy -p editor-core -p editor-server --all-targets -- -D warnings
       - uses: jetli/trunk-action@v0.5.1
       - run: trunk build --release
+
+  browser:
+    needs: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+      - uses: Swatinem/rust-cache@v2
+      - uses: jetli/trunk-action@v0.5.1
+      - name: Build browser app and local Rust API
+        run: |
+          trunk build --release
+          cargo build --release -p editor-server
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install browser test tools
+        run: |
+          python -m pip install "playwright==1.57.0" "psutil>=6,<8"
+          python -m playwright install --with-deps chromium
+      - name: Run real Chromium tests, measure input and memory
+        run: python tests/browser/editor_browser.py --browser chromium
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: editor-chromium-browser-report
+          path: browser-reports/
+          if-no-files-found: warn
