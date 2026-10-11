@@ -129,8 +129,8 @@ def workflow_findings(root: Path) -> list[Finding]:
         # Nightly full audits may run longer than PR checks, but are still finite.
         contents = path.read_text(encoding="utf-8")
         nightly_only = (path.name == "rust-full-audit.yml"
-                        and re.search(r"(?m)^  schedule:\\s*$", contents)
-                        and not re.search(r"(?m)^  pull_request:\\s*$", contents))
+                        and re.search(r"(?m)^  schedule:\s*$", contents)
+                        and not re.search(r"(?m)^  pull_request:\s*$", contents))
         max_minutes = 45 if nightly_only else 30
         jobs_started = False
         active_job: str | None = None
