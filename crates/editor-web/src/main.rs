@@ -233,7 +233,7 @@ fn App() -> impl IntoView {
              }
            ></textarea>
            <article class="preview" style:display=move ||if mode.get()==0 {"none"}else{"block"}
-             attr:data-render-count=move ||preview_render_count.get().to_string()
+             data-render-count=move ||preview_render_count.get().to_string()
              inner_html=move ||preview.get()></article>
          </div>
          <div class="row"><button class="primary" type="button" disabled=move || { !ready.get() || busy.get() || (text_len.get() > MAX_CHAPTER_CHARS && !count_pending.get()) } on:click=save>"Сохранить"</button><span aria-live="polite">{move ||message.get()}</span></div>

@@ -14,7 +14,7 @@ def run_preview_checks(check, context, url: str, selector: str, report: dict):
 
     def render_count(page) -> int:
         value=page.locator("article.preview").get_attribute("data-render-count")
-        assert value is not None, "Preview must expose deterministic render count"
+        assert value is not None, "Preview missing data-render-count: " + page.locator("article.preview").evaluate("(el) => el.outerHTML.slice(0,400)")
         return int(value)
 
     def cache_survives_mode_and_title_changes():
