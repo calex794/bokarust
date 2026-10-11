@@ -284,29 +284,41 @@ def run_suite(browser_name: str) -> dict:
 
                 check("utf16_emoji_selection_format", unicode_selection)
 
+                def independent_editor_page():
+                    p = context.new_page()
+                    p.goto(url)
+                    p.wait_for_function("() => document.body.innerText.includes('Глава загружена')")
+                    return p
+
                 def undo_typing():
-                    area = page.locator(SELECTOR)
-                    area.fill("Начало ")
-                    area.press("End")
-                    area.press_sequentially("Тест", delay=25)
-                    before = area.input_value()
-                    assert before.endswith("Тест"), before
-                    area.press("Control+z")
-                    after = area.input_value()
-                    assert after != before, "Ctrl+Z did not undo any typed character"
-                    return {"before": before, "after": after}
+                    p = independent_editor_page()
+                    try:
+                        area = p.locator(SELECTOR)
+                        area.evaluate("(el) => { el.value = 'Начало '; el.focus(); el.setSelectionRange(el.textLength, el.textLength); }")
+                        area.press_sequentially("Тест", delay=25)
+                        before = area.input_value()
+                        assert before.endswith("Тест"), before
+                        area.press("Control+z")
+                        after = area.input_value()
+                        assert after != before, "Ctrl+Z did not undo any typed character"
+                        return {"before": before, "after": after}
+                    finally:
+                        p.close()
 
                 check("ctrl_z_typed_text", undo_typing)
 
                 def undo_toolbar():
-                    area = page.locator(SELECTOR)
-                    area.fill("Основа 🌍")
-                    area.evaluate("(el) => { el.focus(); el.setSelectionRange(7, 9); }")
-                    page.get_by_role("button", name="Жирный", exact=True).click()
-                    check_equal(area.input_value(), "Основа **🌍**")
-                    area.press("Control+z")
-                    check_equal(area.input_value(), "Основа 🌍")
-                    return True
+                    p = independent_editor_page()
+                    try:
+                        area = p.locator(SELECTOR)
+                        area.evaluate("(el) => { el.value = 'Основа 🌍'; el.focus(); el.setSelectionRange(7, 9); }")
+                        p.get_by_role("button", name="Жирный", exact=True).click()
+                        check_equal(area.input_value(), "Основа **🌍**")
+                        area.press("Control+z")
+                        check_equal(area.input_value(), "Основа 🌍")
+                        return True
+                    finally:
+                        p.close()
 
                 check("ctrl_z_after_formatting", undo_toolbar)
 
