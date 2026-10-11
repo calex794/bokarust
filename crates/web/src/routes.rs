@@ -4,7 +4,9 @@ use axum::{
     routing::get,
     Json, Router,
 };
-use bokarust_application::catalog::{CatalogError, ListPublicBooks, PublicBookRepository, DEFAULT_PAGE_SIZE};
+use bokarust_application::catalog::{
+    CatalogError, ListPublicBooks, PublicBookRepository, DEFAULT_PAGE_SIZE,
+};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
@@ -61,7 +63,10 @@ pub fn router(catalog: Arc<dyn PublicBookRepository>) -> Router {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use axum::{body::{to_bytes, Body}, http::Request};
+    use axum::{
+        body::{to_bytes, Body},
+        http::Request,
+    };
     use bokarust_adapters::in_memory::InMemoryCatalog;
     use bokarust_domain::books::{Book, BookKey, Visibility};
     use tower::ServiceExt;
@@ -87,7 +92,12 @@ mod tests {
     #[tokio::test]
     async fn health_route_is_ready_for_local_dev() {
         let response = test_router()
-            .oneshot(Request::builder().uri("/healthz").body(Body::empty()).expect("request"))
+            .oneshot(
+                Request::builder()
+                    .uri("/healthz")
+                    .body(Body::empty())
+                    .expect("request"),
+            )
             .await
             .expect("response");
         assert_eq!(response.status(), StatusCode::OK);
@@ -96,7 +106,12 @@ mod tests {
     #[tokio::test]
     async fn public_route_omits_private_data() {
         let response = test_router()
-            .oneshot(Request::builder().uri("/api/v1/books").body(Body::empty()).expect("request"))
+            .oneshot(
+                Request::builder()
+                    .uri("/api/v1/books")
+                    .body(Body::empty())
+                    .expect("request"),
+            )
             .await
             .expect("response");
         assert_eq!(response.status(), StatusCode::OK);

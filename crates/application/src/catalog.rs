@@ -39,7 +39,10 @@ impl<'a> ListPublicBooks<'a> {
         }
         let books = self.repository.list_public(limit).await?;
         // A defective adapter is not permitted to expand the public read model.
-        if books.iter().any(|book| book.visibility() != Visibility::Public) {
+        if books
+            .iter()
+            .any(|book| book.visibility() != Visibility::Public)
+        {
             return Err(CatalogError::Unavailable);
         }
         Ok(books.into_iter().take(limit).collect())
@@ -57,7 +60,9 @@ mod tests {
     impl PublicBookRepository for DefectiveRepository {
         async fn list_public(&self, _limit: usize) -> Result<Vec<Book>, CatalogError> {
             let key = BookKey::new("source:1", "ru").expect("key");
-            Ok(vec![Book::new(1, key, "Hidden", Visibility::Draft).expect("book")])
+            Ok(vec![
+                Book::new(1, key, "Hidden", Visibility::Draft).expect("book")
+            ])
         }
     }
 

@@ -126,14 +126,8 @@ mod tests {
 
     #[test]
     fn empty_and_invalid_identifiers_are_rejected() {
-        assert_eq!(
-            BookKey::new(" ", "ru"),
-            Err(BookError::EmptySourceIdentity)
-        );
-        assert_eq!(
-            BookKey::new("x", "../ru"),
-            Err(BookError::InvalidLanguage)
-        );
+        assert_eq!(BookKey::new(" ", "ru"), Err(BookError::EmptySourceIdentity));
+        assert_eq!(BookKey::new("x", "../ru"), Err(BookError::InvalidLanguage));
         let key = BookKey::new("source:x", "ru").expect("valid key");
         assert_eq!(
             Book::new(0, key, "Title", Visibility::Public),
