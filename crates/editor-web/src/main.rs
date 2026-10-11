@@ -37,7 +37,16 @@ fn App() -> impl IntoView {
             let a=(start as usize).min(chars.len());let b=(end as usize).min(chars.len());
             let selected=String::from_utf16_lossy(&chars[a..b]);
             let replacement=format!("{prefix}{selected}{suffix}");
-            let _=el.set_range_text_with_start_and_end_and_mode(&replacement,start,end,"select");
+            // Use the native undo buffer when available. execCommand is deprecated,
+            // so the browser regression test protects this compatibility path.
+            let _=el.focus();
+            let native_undo=web_sys::window()
+                .and_then(|window| window.document())
+                .and_then(|document| document.exec_command_with_show_ui_and_value("insertText",false,&replacement).ok())
+                .unwrap_or(false);
+            if !native_undo {
+                let _=el.set_range_text_with_start_and_end_and_mode(&replacement,start,end,"select");
+            }
             set_dirty.set(true);set_text_len.set(el.text_length() as usize);set_edit_epoch.update(|n| *n += 1);
             let _=el.focus();
         }
