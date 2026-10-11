@@ -425,6 +425,70 @@ def run_suite(browser_name: str) -> dict:
 
                 check("ctrl_z_after_formatting", undo_toolbar)
 
+                def format_selected_text_in_large_unicode_chapter():
+                    p = independent_editor_page()
+                    try:
+                        area = p.locator(SELECTOR)
+                        initial = "Начало\n" + ("Я" * 49_900) + " конец 🌍"
+                        area.fill(initial)
+                        assert p.get_by_role("button", name="Жирный", exact=True).is_enabled()
+                        selection = area.evaluate("""(el) => {
+                            const label = 'конец 🌍';
+                            const start = el.value.lastIndexOf(label);
+                            el.focus();
+                            el.setSelectionRange(start, start + label.length);
+                            return [el.selectionStart, el.selectionEnd];
+                        }""")
+                        assert selection[1] - selection[0] == len("конец 🌍".encode("utf-16-le")) // 2
+                        p.get_by_role("button", name="Жирный", exact=True).click()
+                        expected = initial.replace("конец 🌍", "**конец 🌍**")
+                        check_equal(area.input_value(), expected)
+                        area.press("Control+z")
+                        check_equal(area.input_value(), initial)
+                        return True
+                    finally:
+                        p.close()
+
+                check("50k_unicode_selection_no_data_loss_and_undo", format_selected_text_in_large_unicode_chapter)
+
+                def surrogate_split_selection_is_safe():
+                    p = independent_editor_page()
+                    try:
+                        area = p.locator(SELECTOR)
+                        original = "Привет 🌍 мир"
+                        area.fill(original)
+                        bounds = area.evaluate("""(el) => {
+                            const offset = el.value.indexOf('🌍') + 1;
+                            el.focus();
+                            el.setSelectionRange(offset, offset);
+                            return [el.selectionStart, el.selectionEnd, offset];
+                        }""")
+                        p.get_by_role("button", name="Курсив", exact=True).click()
+                        result = area.input_value()
+                        assert "🌍" in result and "\ufffd" not in result
+                        # Chromium may clamp scripted positions to glyph boundaries.
+                        if bounds[0] == bounds[1] == bounds[2]:
+                            check_equal(result, original)
+                        return True
+                    finally:
+                        p.close()
+
+                check("selection_cannot_split_emoji_surrogate_pair", surrogate_split_selection_is_safe)
+
+                def selection_does_not_copy_whole_chapter_to_wasm():
+                    source = (ROOT / "crates/editor-web/src/main.rs").read_text(encoding="utf-8")
+                    start = source.index("    let edit =")
+                    end = source.index("    let load=", start)
+                    hot_section = source[start:end]
+                    assert "selection_text(&el, start, end)" in hot_section
+                    assert "el.value()" not in hot_section, "Toolbar must not copy full Markdown into Rust"
+                    assert "encode_utf16().collect()" not in hot_section
+                    assert "value.slice(start, end)" in source
+                    return True
+
+                check("selection_format_uses_substring_not_full_document", selection_does_not_copy_whole_chapter_to_wasm)
+
+
                 def multi_language_typing():
                     area = page.locator(SELECTOR)
                     area.fill("")
