@@ -252,7 +252,7 @@ def measure(browser_type, base_url: str, kind: str, n: int, label: str, repeat: 
                 has_unicode: value.includes('世界 🌍') && value.includes('Тест'),
                 width: el.getBoundingClientRect().width,
                 height: el.getBoundingClientRect().height,
-                line_count: cm ? cm.lineCount() : value.split('\n').length,
+                line_count: cm ? cm.lineCount() : value.split('\\n').length,
               };
             }""",
             kind,
