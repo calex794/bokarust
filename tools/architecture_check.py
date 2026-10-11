@@ -126,6 +126,12 @@ def workflow_findings(root: Path) -> list[Finding]:
     for path in sorted(directory.iterdir()):
         if path.suffix not in WORKFLOW_SUFFIXES or not path.is_file():
             continue
+        # Nightly full audits may run longer than PR checks, but are still finite.
+        contents = path.read_text(encoding="utf-8")
+        nightly_only = (path.name == "rust-full-audit.yml"
+                        and re.search(r"(?m)^  schedule:\\s*$", contents)
+                        and not re.search(r"(?m)^  pull_request:\\s*$", contents))
+        max_minutes = 45 if nightly_only else 30
         jobs_started = False
         active_job: str | None = None
         active_timeout: int | None = None
@@ -136,7 +142,7 @@ def workflow_findings(root: Path) -> list[Finding]:
                                         path.relative_to(root).as_posix(),
                                         f"job {active_job!r} lacks timeout-minutes"))
 
-        for line in path.read_text(encoding="utf-8").splitlines():
+        for line in contents.splitlines():
             if line == "jobs:":
                 jobs_started = True
                 continue
@@ -151,7 +157,7 @@ def workflow_findings(root: Path) -> list[Finding]:
                 timeout = re.match(r"^    timeout-minutes:\s*(\d+)\s*(?:#.*)?$", line)
                 if timeout:
                     active_timeout = int(timeout.group(1))
-                    if not 1 <= active_timeout <= 30:
+                    if not 1 <= active_timeout <= max_minutes:
                         findings.append(Finding("BLOCK", "JOB_TIMEOUT",
                                                 path.relative_to(root).as_posix(),
                                                 f"job {active_job!r}: invalid "
