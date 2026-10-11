@@ -477,7 +477,7 @@ def run_suite(browser_name: str) -> dict:
 
                 def selection_does_not_copy_whole_chapter_to_wasm():
                     source = (ROOT / "crates/editor-web/src/main.rs").read_text(encoding="utf-8")
-                    start = source.index("    let edit =")
+                    start = source.index("    let edit:")
                     end = source.index("    let load=", start)
                     hot_section = source[start:end]
                     assert "selection_text(&el, start, end)" in hot_section
