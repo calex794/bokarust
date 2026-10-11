@@ -10,7 +10,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: rust-workspace
+  group: rust-workspace-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -19,6 +19,22 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Select affected Rust packages
+        id: impact
+        env:
+          BASE_BRANCH: ${{ github.base_ref }}
+        run: |
+          if [ -n "$BASE_BRANCH" ]; then
+            python tools/select_rust_packages.py --base "origin/$BASE_BRANCH" --github-output "$GITHUB_OUTPUT"
+          else
+            python tools/select_rust_packages.py --full --github-output "$GITHUB_OUTPUT"
+          fi
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt, clippy
@@ -29,5 +45,34 @@ jobs:
         run: cargo check --workspace --all-targets
       - name: Lint
         run: cargo clippy --workspace --all-targets -- -D warnings
-      - name: Bounded unit and HTTP tests
-        run: timeout --signal=TERM --kill-after=5s 240s cargo test --workspace
+      - name: Install Nextest
+        uses: taiki-e/install-action@fa0dd4cd0a40696e6f9766370614a5ce482e6aa8 # v2.77.5
+        with:
+          tool: nextest
+      - name: Run bounded affected Rust tests
+        if: steps.impact.outputs.run_tests == 'true'
+        env:
+          TEST_PACKAGES: ${{ steps.impact.outputs.packages }}
+        run: |
+          args=()
+          for package in $TEST_PACKAGES; do
+            args+=(--package "$package")
+          done
+          cargo nextest run --profile ci "${args[@]}"
+      - name: Run documentation tests
+        if: steps.impact.outputs.run_tests == 'true'
+        env:
+          TEST_PACKAGES: ${{ steps.impact.outputs.packages }}
+        run: |
+          args=()
+          for package in $TEST_PACKAGES; do
+            args+=(--package "$package")
+          done
+          timeout --signal=TERM --kill-after=5s 120s cargo test --doc "${args[@]}"
+      - name: Save selection explanation
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: rust-test-selection
+          path: .repo-check/test-selection.json
+          if-no-files-found: warn
