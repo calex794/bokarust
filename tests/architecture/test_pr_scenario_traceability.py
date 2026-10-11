@@ -101,7 +101,7 @@ class ScenarioTraceabilityTest(unittest.TestCase):
 
     def test_missing_remaining_work_is_rejected(self) -> None:
         body = VALID.replace("## Что осталось\nНет", "## Что осталось\n-")
-        self.assertTrue(any("остались" in e for e in guard.validate(body)))
+        self.assertTrue(any("оставшиеся" in e for e in guard.validate(body)))
 
     def test_duplicate_section_is_rejected(self) -> None:
         self.assertTrue(any(
