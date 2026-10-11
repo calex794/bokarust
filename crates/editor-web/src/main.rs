@@ -1,11 +1,35 @@
 use leptos::prelude::*;
 use leptos::mount::mount_to_body;
 use web_sys::HtmlTextAreaElement;
+use js_sys::JsString;
 use wasm_bindgen::JsCast;
 use gloo_net::http::Request;
 use gloo_timers::callback::Timeout;
 use std::{cell::RefCell, rc::Rc};
 use editor_core::{Chapter,SaveChapter,MAX_CHAPTER_CHARS,CHAPTER_LENGTH_ERROR};
+
+// UTF-16 positions come from the browser. The full chapter stays in JS;
+// only the selected substring is copied to Rust/WASM.
+fn valid_selection_boundary(text: &JsString, index: u32) -> bool {
+    if index == 0 || index == text.length() { return true; }
+    // Reject positions inside a surrogate pair, even when set programmatically.
+    text.slice(index - 1, index).is_valid_utf16()
+        || text.slice(index, index + 1).is_valid_utf16()
+}
+
+fn selection_text(el: &HtmlTextAreaElement, start: u32, end: u32) -> Option<String> {
+    let raw = js_sys::Reflect::get(el.as_ref(), &wasm_bindgen::JsValue::from_str("value")).ok()?;
+    if !raw.is_string() { return None; }
+    let value: JsString = raw.unchecked_into();
+    if start > end || end > value.length()
+        || !valid_selection_boundary(&value, start)
+        || !valid_selection_boundary(&value, end) {
+        return None;
+    }
+    let selected = value.slice(start, end);
+    if !selected.is_valid_utf16() { return None; }
+    Some(String::from(selected))
+}
 
 #[component]
 fn App() -> impl IntoView {
@@ -23,9 +47,20 @@ fn App() -> impl IntoView {
     let (edit_epoch,set_edit_epoch)=signal(0u64);
     // A pending timer is cancelled when another character arrives.
     let count_timer: Rc<RefCell<Option<Timeout>>> = Rc::new(RefCell::new(None));
-    let count_timer_for_input = Rc::clone(&count_timer);
-
     let textarea = move || area.get().map(|el| <_ as AsRef<HtmlTextAreaElement>>::as_ref(&el).clone());
+    let recount: Rc<dyn Fn()> = Rc::new(move || {
+        if !count_pending.get_untracked() { set_count_pending.set(true); }
+        count_timer.borrow_mut().take();
+        let timer = Timeout::new(300, move || {
+            if let Some(el) = textarea() {
+                set_text_len.set(el.value().chars().count());
+            }
+            set_count_pending.set(false);
+        });
+        count_timer.borrow_mut().replace(timer);
+    });
+    let recount_after_format = Rc::clone(&recount);
+    let recount_after_input = Rc::clone(&recount);
     let render_preview = move || {
         if let Some(el)=textarea() {
             let text=el.value();
@@ -40,11 +75,8 @@ fn App() -> impl IntoView {
         if let Some(el)=textarea(){
             let start=el.selection_start().ok().flatten().unwrap_or(0);
             let end=el.selection_end().ok().flatten().unwrap_or(start);
-            let value=el.value();
-            // Textarea selection indices are UTF-16. Browser selection is not byte indexing.
-            let chars:Vec<u16>=value.encode_utf16().collect();
-            let a=(start as usize).min(chars.len());let b=(end as usize).min(chars.len());
-            let selected=String::from_utf16_lossy(&chars[a..b]);
+            // UTF-16 slicing runs in JS; only the actual selection crosses into WASM.
+            let Some(selected) = selection_text(&el, start, end) else { return };
             let replacement=format!("{prefix}{selected}{suffix}");
             // Use the native undo buffer when available. execCommand is deprecated,
             // so the browser regression test protects this compatibility path.
@@ -53,10 +85,13 @@ fn App() -> impl IntoView {
                 .and_then(|window| window.document())
                 .and_then(|document| document.unchecked_into::<web_sys::HtmlDocument>().exec_command_with_show_ui_and_value("insertText",false,&replacement).ok())
                 .unwrap_or(false);
-            if !native_undo {
-                let _=el.set_range_text_with_start_and_end_and_mode(&replacement,start,end,"select");
-            }
-            set_dirty.set(true);set_text_len.set(el.value().chars().count());set_edit_epoch.update(|n| *n += 1);
+            let inserted = if native_undo { true } else {
+                el.set_range_text_with_start_and_end_and_mode(&replacement,start,end,"select").is_ok()
+            };
+            if !inserted { return; }
+            set_dirty.set(true);
+            set_edit_epoch.update(|n| *n += 1);
+            recount_after_format();
             let _=el.focus();
         }
     };
@@ -160,15 +195,7 @@ fn App() -> impl IntoView {
                 // Hot path is O(1) in chapter length: the browser owns the text.
                 set_dirty.set(true);
                 set_edit_epoch.update(|n| *n += 1);
-                if !count_pending.get_untracked() {set_count_pending.set(true);}
-                count_timer_for_input.borrow_mut().take();
-                let timer=Timeout::new(300, move || {
-                    if let Some(el)=textarea() {
-                        set_text_len.set(el.value().chars().count());
-                    }
-                    set_count_pending.set(false);
-                });
-                count_timer_for_input.borrow_mut().replace(timer);
+                recount_after_input();
              }
            ></textarea>
            <article class="preview" style:display=move ||if mode.get()==0 {"none"}else{"block"}
