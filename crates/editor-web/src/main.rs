@@ -1,6 +1,7 @@
 use leptos::prelude::*;
 use leptos::mount::mount_to_body;
 use web_sys::HtmlTextAreaElement;
+use wasm_bindgen::JsCast;
 use gloo_net::http::Request;
 use editor_core::{Chapter,SaveChapter};
 
@@ -42,7 +43,7 @@ fn App() -> impl IntoView {
             let _=el.focus();
             let native_undo=web_sys::window()
                 .and_then(|window| window.document())
-                .and_then(|document| document.exec_command_with_show_ui_and_value("insertText",false,&replacement).ok())
+                .and_then(|document| document.unchecked_into::<web_sys::HtmlDocument>().exec_command_with_show_ui_and_value("insertText",false,&replacement).ok())
                 .unwrap_or(false);
             if !native_undo {
                 let _=el.set_range_text_with_start_and_end_and_mode(&replacement,start,end,"select");
