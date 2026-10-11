@@ -240,7 +240,7 @@ def run_suite(browser_name: str) -> dict:
                     ),
                     check_equal(page.locator(SELECTOR).input_value().splitlines()[0], "Первый абзац."),
                 ))
-                for size, label in ((20_000, "20 тыс."), (150_000, "150 тыс."), (1_000_000, "1 млн")):
+                for size, label in ((5_000, "5 тыс."), (10_000, "10 тыс."), (20_000, "20 тыс."), (50_000, "50 тыс."), (150_000, "150 тыс."), (1_000_000, "1 млн")):
                     data = check(
                         f"input_memory_{size}",
                         lambda size=size, label=label: browser_benchmark(page, size, label, browser_name),
@@ -252,7 +252,11 @@ def run_suite(browser_name: str) -> dict:
                             path=str(REPORT_DIR / f"{browser_name}-million.png")
                         ))
 
-                def check_big_save():
+                def check_max_length_and_save():
+                    area = page.locator(SELECTOR)
+                    assert page.get_by_role("button", name="Сохранить", exact=True).is_disabled(), "Oversized chapter must not be saved"
+                    area.fill("Я" * 50_000)
+                    assert page.get_by_role("button", name="Сохранить", exact=True).is_enabled()
                     page.get_by_role("button", name="Сохранить", exact=True).click()
                     page.wait_for_function(
                         "() => document.body.innerText.includes('Сохранено: версия')", timeout=90000
@@ -260,14 +264,27 @@ def run_suite(browser_name: str) -> dict:
                     response = page.request.get(f"{url}/api/chapter")
                     assert response.ok, response.status
                     doc = response.json()
-                    assert len(doc["markdown"]) >= 1_000_000
+                    assert len(doc["markdown"]) == 50_000
                     assert doc["revision"] == 1
                     page.get_by_role("button", name="Сохранить", exact=True).click()
                     response_2 = page.request.get(f"{url}/api/chapter").json()
                     check_equal(response_2["revision"], 1)
                     return True
 
-                check("million_character_save_and_noop", check_big_save)
+                check("max_50k_chapter_save_and_noop", check_max_length_and_save)
+
+                def reject_50_001_characters():
+                    response = page.request.put(
+                        f"{url}/api/chapter",
+                        data=json.dumps({"title":"Глава","markdown":"🌍" * 50_001,"expected_revision":1}, ensure_ascii=False),
+                        headers={"Content-Type":"application/json"},
+                    )
+                    assert response.status == 400, f"Expected HTTP 400, got {response.status}"
+                    assert "50 000" in response.text()
+                    check_equal(page.request.get(f"{url}/api/chapter").json()["revision"], 1)
+                    return True
+
+                check("server_rejects_50_001_emoji", reject_50_001_characters)
 
                 def unicode_selection():
                     area = page.locator(SELECTOR)
