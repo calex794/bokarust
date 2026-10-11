@@ -1,0 +1,29 @@
+name: PR scenario traceability
+
+on:
+  pull_request:
+    types: [opened, edited, reopened, synchronize, ready_for_review]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pr-scenario-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  scenario-traceability:
+    name: Scenario traceability
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Verify the PR validation rules
+        run: python -m unittest discover -s tests/architecture -p 'test_pr_scenario_traceability.py' -v
+      - name: Validate the PR description
+        run: python tools/check_pr_scenario.py --event "$GITHUB_EVENT_PATH"
