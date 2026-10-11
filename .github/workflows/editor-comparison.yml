@@ -1,0 +1,58 @@
+name: Compare Rust editor with original EasyMDE
+on:
+  push:
+    branches: [feat/rust-chapter-editor-prototype]
+  pull_request:
+    paths:
+      - "tests/comparison/**"
+      - ".github/workflows/editor-comparison.yml"
+      - "crates/editor-web/**"
+      - "crates/editor-server/**"
+permissions:
+  contents: read
+jobs:
+  comparison:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - name: Checkout new Rust editor
+        uses: actions/checkout@v4
+      - name: Checkout pinned original Booka assets
+        uses: actions/checkout@v4
+        with:
+          repository: calex794/booka
+          ref: f19a7a20174cc2651d88c51123afb5f8e9093d4b
+          path: reference-booka
+          sparse-checkout: |
+            backend/app/web/static/vendor/easymde
+            backend/app/web/static/js/chapter-editor-images.js
+            backend/app/web/static/css/components/chapter-authoring.css
+          sparse-checkout-cone-mode: false
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+      - uses: Swatinem/rust-cache@v2
+      - uses: jetli/trunk-action@v0.5.1
+      - name: Compile both parts of Rust editor
+        run: |
+          trunk build --release
+          cargo build --release -p editor-server
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install Chrome measurement tools
+        run: |
+          python -m pip install "playwright==1.57.0" "psutil>=6,<8"
+          python -m playwright install --with-deps chromium
+      - name: Check original asset SHA and create test-only EasyMDE page
+        run: python tests/comparison/stage_reference.py
+      - name: Compare text input, memory and load on matched content
+        run: python tests/comparison/compare.py --repeats 2 --max-size 1000000
+      - name: Upload comparison report and screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: rust-vs-easymde-chromium
+          path: browser-reports/comparison/
+          if-no-files-found: warn
