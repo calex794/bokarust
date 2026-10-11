@@ -123,7 +123,7 @@ fn App() -> impl IntoView {
            <button type="button" on:click=move |_|make_sample(50_000)>"50 тыс."</button>
            <button type="button" on:click=move |_|make_sample(150_000)>"150 тыс."</button>
            <button type="button" on:click=move |_|make_sample(1_000_000)>"1 млн"</button>
-           <span class=move || if text_len.get()>MAX_CHAPTER_CHARS {"error"} else {"muted"}>{move ||format!("Символов: {} из {}",text_len.get(),MAX_CHAPTER_CHARS)}</span>
+           <span class=move || { if text_len.get() > MAX_CHAPTER_CHARS { "error" } else { "muted" } }>{move ||format!("Символов: {} из {}",text_len.get(),MAX_CHAPTER_CHARS)}</span>
          </div>
          <div class=move || if mode.get()==2 {"columns"} else {"columns single"}>
            <textarea node_ref=area style:display=move || if mode.get()==1 {"none"} else {"block"}
@@ -133,7 +133,7 @@ fn App() -> impl IntoView {
            <article class="preview" style:display=move ||if mode.get()==0 {"none"}else{"block"}
              inner_html=move ||preview.get()></article>
          </div>
-         <div class="row"><button class="primary" type="button" disabled=move ||busy.get() || text_len.get()>MAX_CHAPTER_CHARS on:click=save>"Сохранить"</button><span aria-live="polite">{move ||message.get()}</span></div>
+         <div class="row"><button class="primary" type="button" disabled=move || { busy.get() || (text_len.get() > MAX_CHAPTER_CHARS) } on:click=save>"Сохранить"</button><span aria-live="polite">{move ||message.get()}</span></div>
          <p class="muted">"Обычная глава — 5–10 тыс. символов, максимум 50 тыс. Кнопки 150 тыс. и 1 млн — только для испытания нагрузки; такие тексты сохранить нельзя. Проверочный прототип для локального запуска."</p>
        </main>
       </div>
