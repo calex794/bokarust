@@ -1,0 +1,15 @@
+[package]
+name = "bokarust-web"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+axum.workspace = true
+bokarust-application = { path = "../application" }
+bokarust-adapters = { path = "../adapters" }
+serde.workspace = true
+tokio.workspace = true
+
+[dev-dependencies]
+bokarust-domain = { path = "../domain" }
+tower = { version = "0.5", features = ["util"] }

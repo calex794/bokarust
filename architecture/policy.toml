@@ -11,6 +11,15 @@ fanout_block = 15
 # shared: reusable value types; domain: rules; application: use cases;
 # infrastructure: database/storage adapters; edge: web/API/worker entry points.
 [packages]
+bokarust-domain = "domain"
+bokarust-application = "application"
+bokarust-adapters = "infrastructure"
+bokarust-web = "edge"
+
+# Existing editor prototype (PR #1) stays isolated until integration.
+editor-core = "domain"
+editor-web = "edge"
+editor-server = "edge"
 
 [forbidden_external]
 domain = ["axum", "sqlx", "reqwest", "hyper", "tokio-postgres", "diesel", "rusqlite", "aws-sdk-s3", "redis"]
