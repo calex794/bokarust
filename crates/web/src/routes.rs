@@ -118,7 +118,7 @@ async fn chapter_reader_page(
         .ok_or(StatusCode::NOT_FOUND)?;
     Ok((
         [(header::CACHE_CONTROL, "no-store")],
-        pages::reader(&chapter),
+        pages::reader(&chapter, id),
     ))
 }
 
@@ -168,9 +168,18 @@ pub fn router_with_auth_and_reading(
             origin: public_origin.clone(),
         },
     );
+    let reading = crate::reading_private::router(
+        accounts.clone(),
+        reader.clone(),
+        crate::auth_cookies::CookiePolicy {
+            secure,
+            origin: public_origin.clone(),
+        },
+    );
     catalog_router(catalog, Some(reader))
         .merge(crate::auth::router(accounts, secure, public_origin))
         .merge(author)
+        .merge(reading)
 }
 
 #[cfg(test)]
