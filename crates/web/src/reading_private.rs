@@ -149,7 +149,7 @@ async fn save_place(
             Redirect::to(&format!("/read/{chapter_id}#p-{block_index}")),
             &[],
         ),
-        Err(response) => response,
+        Err(response) => *response,
     }
 }
 
@@ -162,7 +162,7 @@ async fn save_place_auto(
 ) -> Response {
     match persist_place(&state, chapter_id, &headers, &form).await {
         Ok(()) => private_response(StatusCode::NO_CONTENT, &[]),
-        Err(response) => response,
+        Err(response) => *response,
     }
 }
 
@@ -172,31 +172,33 @@ async fn persist_place(
     chapter_id: i64,
     headers: &HeaderMap,
     form: &PositionForm,
-) -> Result<(), Response> {
+) -> Result<(), Box<Response>> {
     if !state.cookies.same_origin(headers) || !state.cookies.valid_csrf(headers, &form.csrf_token) {
-        return Err(deny(StatusCode::FORBIDDEN));
+        return Err(Box::new(deny(StatusCode::FORBIDDEN)));
     }
-    let user = user_id(state, headers).await.map_err(deny)?;
-    let chapter_key = u64::try_from(chapter_id).map_err(|_| deny(StatusCode::NOT_FOUND))?;
+    let user = user_id(state, headers)
+        .await
+        .map_err(|status| Box::new(deny(status)))?;
+    let chapter_key = u64::try_from(chapter_id).map_err(|_| Box::new(deny(StatusCode::NOT_FOUND)))?;
     let chapter = state
         .reader
         .public_chapter(chapter_key)
         .await
-        .map_err(|_| deny(StatusCode::SERVICE_UNAVAILABLE))?
-        .ok_or_else(|| deny(StatusCode::NOT_FOUND))?;
+        .map_err(|_| Box::new(deny(StatusCode::SERVICE_UNAVAILABLE)))?
+        .ok_or_else(|| Box::new(deny(StatusCode::NOT_FOUND)))?;
     let version_id =
-        i64::try_from(chapter.version_id).map_err(|_| deny(StatusCode::SERVICE_UNAVAILABLE))?;
+        i64::try_from(chapter.version_id).map_err(|_| Box::new(deny(StatusCode::SERVICE_UNAVAILABLE)))?;
     if version_id != form.version_id {
-        return Err(deny(StatusCode::CONFLICT));
+        return Err(Box::new(deny(StatusCode::CONFLICT)));
     }
     valid_place(
         form.block_index,
         reader_blocks(&chapter.body_markdown).len(),
     )
-    .map_err(failure)?;
+    .map_err(|error| Box::new(failure(error)))?;
     state
         .progress
         .save_position(user, chapter_id, version_id, form.block_index)
         .await
-        .map_err(failure)
+        .map_err(|error| Box::new(failure(error)))
 }
