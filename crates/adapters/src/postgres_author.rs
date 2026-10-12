@@ -101,7 +101,7 @@ impl PgAuthor {
         chapter_id: i64,
     ) -> Result<Option<OwnedChapter>, AuthorError> {
         let row = sqlx::query(
-            "SELECT c.chapter_no, c.title, c.access_level, c.price_cents, \
+            "SELECT c.chapter_no, c.title, c.access_level, c.price_amount, \
                     c.edit_revision, v.body_markdown \
              FROM chapters c JOIN books b ON b.id = c.book_id \
              JOIN chapter_publications p ON p.chapter_id = c.id \
@@ -128,7 +128,7 @@ impl PgAuthor {
                 title: r.try_get("title").map_err(db)?,
                 body: r.try_get("body_markdown").map_err(db)?,
                 access,
-                price_cents: r.try_get("price_cents").map_err(db)?,
+                price_amount: r.try_get("price_amount").map_err(db)?,
                 revision: r.try_get("edit_revision").map_err(db)?,
             })
         })
