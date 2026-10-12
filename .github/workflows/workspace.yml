@@ -55,6 +55,9 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - name: Format
         run: cargo fmt --all -- --check
+      - name: Verify reader autosave browser behavior
+        if: contains(steps.impact.outputs.packages, 'bokarust-web')
+        run: timeout --signal=TERM --kill-after=5s 30s node --test crates/web/tests/reader_progress_browser.test.cjs
       - name: Check build and all test targets
         run: cargo check --workspace --all-targets
       - name: Lint
