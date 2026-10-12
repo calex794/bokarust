@@ -1,6 +1,8 @@
 //! Author-owned book reads and shared transaction primitives.
 #![forbid(unsafe_code)]
-use bokarust_application::authoring::{AuthorError, ChapterAccess, OwnedBook, OwnedChapter, OwnedChapterSummary};
+use bokarust_application::authoring::{
+    AuthorError, ChapterAccess, OwnedBook, OwnedChapter, OwnedChapterSummary,
+};
 use sha2::{Digest, Sha256};
 use sqlx::{PgPool, Postgres, Row, Transaction};
 
@@ -24,10 +26,12 @@ impl PgAuthor {
         .await
         .map_err(db)?;
         rows.into_iter()
-            .map(|row| Ok(OwnedBook {
-                id: row.try_get("id").map_err(db)?,
-                title: row.try_get("title").map_err(db)?,
-            }))
+            .map(|row| {
+                Ok(OwnedBook {
+                    id: row.try_get("id").map_err(db)?,
+                    title: row.try_get("title").map_err(db)?,
+                })
+            })
             .collect()
     }
 
@@ -45,10 +49,12 @@ impl PgAuthor {
         .fetch_optional(&self.pool)
         .await
         .map_err(db)?;
-        row.map(|r| Ok(OwnedBook {
-            id: r.try_get("id").map_err(db)?,
-            title: r.try_get("title").map_err(db)?,
-        }))
+        row.map(|r| {
+            Ok(OwnedBook {
+                id: r.try_get("id").map_err(db)?,
+                title: r.try_get("title").map_err(db)?,
+            })
+        })
         .transpose()
     }
 
@@ -171,6 +177,9 @@ mod tests {
     use super::*;
     #[test]
     fn payload_frames_prevent_ambiguous_command_hashing() {
-        assert_ne!(payload_digest(&[b"ab", b"c"]), payload_digest(&[b"a", b"bc"]));
+        assert_ne!(
+            payload_digest(&[b"ab", b"c"]),
+            payload_digest(&[b"a", b"bc"])
+        );
     }
 }
