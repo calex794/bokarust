@@ -181,3 +181,5 @@ button:disabled, input:disabled { cursor: not-allowed; }
   .book-grid { grid-template-columns: 1fr; }
   .auth-card { padding: 24px; }
 }
+
+.form-error { color: #9b1c1c; background: #fff1f1; padding: 12px; border-radius: 9px; line-height: 1.5; }
