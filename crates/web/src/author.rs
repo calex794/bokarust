@@ -98,10 +98,14 @@ fn permitted_form(state: &AuthorState, headers: &HeaderMap, csrf: &str) -> bool 
     state.cookies.same_origin(headers) && state.cookies.valid_csrf(headers, csrf)
 }
 
-fn page_with_csrf(state: &AuthorState, render: impl FnOnce(&str, &str) -> axum::response::Html<String>) -> Response {
-    let (csrf, cookie) = state.cookies.csrf_token_cookie();
+fn page_with_csrf(
+    state: &AuthorState,
+    headers: &HeaderMap,
+    render: impl FnOnce(&str, &str) -> axum::response::Html<String>,
+) -> Response {
+    let (csrf, cookies) = state.cookies.csrf_for_page(headers);
     let key = generate_session_token();
-    private_response(render(&csrf, &key), &[cookie])
+    private_response(render(&csrf, &key), &cookies)
 }
 
 async fn my_books(State(state): State<AuthorState>, headers: HeaderMap) -> Response {
@@ -139,7 +143,7 @@ async fn book_form(State(state): State<AuthorState>, headers: HeaderMap) -> Resp
     if let Err(response) = page_user(&state, &headers).await {
         return response;
     }
-    page_with_csrf(&state, author_pages::new_book)
+    page_with_csrf(&state, &headers, author_pages::new_book)
 }
 
 async fn create_book(
@@ -176,7 +180,7 @@ async fn new_chapter_form(
         Err(response) => return response,
     };
     match state.author.owned_book(user, book_id).await {
-        Ok(Some(_)) => page_with_csrf(&state, |csrf, key| {
+        Ok(Some(_)) => page_with_csrf(&state, &headers, |csrf, key| {
             author_pages::chapter_form(book_id, None, None, csrf, key)
         }),
         Ok(None) => fail(StatusCode::NOT_FOUND),
