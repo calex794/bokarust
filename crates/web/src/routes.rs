@@ -160,11 +160,17 @@ pub fn router_with_auth_and_reading(
     secure: bool,
     public_origin: String,
 ) -> Router {
-    catalog_router(catalog, Some(reader)).merge(crate::auth::router(
-        accounts,
-        secure,
-        public_origin,
-    ))
+    let author = crate::author::router(
+        accounts.clone(),
+        bokarust_adapters::postgres_author::PgAuthor::new(accounts.pool().clone()),
+        crate::auth_cookies::CookiePolicy {
+            secure,
+            origin: public_origin.clone(),
+        },
+    );
+    catalog_router(catalog, Some(reader))
+        .merge(crate::auth::router(accounts, secure, public_origin))
+        .merge(author)
 }
 
 #[cfg(test)]

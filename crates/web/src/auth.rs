@@ -256,8 +256,8 @@ async fn me(State(state): State<AuthState>, headers: HeaderMap) -> Response {
         Ok(None) => return private_response(Redirect::to("/login"), &[]),
         Err(_) => return deny(StatusCode::SERVICE_UNAVAILABLE),
     };
-    let (csrf, cookie) = state.cookies.csrf_token_cookie();
-    private_response(pages::my_account(&name, &csrf), &[cookie])
+    let (csrf, cookies) = state.cookies.csrf_for_page(&headers);
+    private_response(pages::my_account(&name, &csrf), &cookies)
 }
 
 async fn logout(

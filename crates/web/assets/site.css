@@ -195,3 +195,13 @@ button:disabled, input:disabled { cursor: not-allowed; }
   line-height: 1.85; background: #fff; border: 1px solid #e1e8e0;
   border-radius: 14px; padding: 28px; color: #29342e;
 }
+
+/* Narrow, keyboard-friendly author forms; the reader uses the same layout. */
+.author-width { width: min(820px, 100%); margin-inline: auto; }
+.author-form { max-width: 100%; }
+.author-form textarea, .author-form select {
+  width: 100%; padding: 12px; border: 1px solid #d2dcd1; border-radius: 9px;
+  background: #fff; font: inherit; line-height: 1.6;
+}
+.author-form textarea { resize: vertical; min-height: 220px; white-space: pre-wrap; }
+.author-chapters { padding-left: 25px; line-height: 2.25; overflow-wrap: anywhere; }

@@ -44,6 +44,15 @@ impl CookiePolicy {
         (token, cookie)
     }
 
+    /// Keep the same CSRF token across several open editor tabs.
+    pub(crate) fn csrf_for_page(&self, headers: &HeaderMap) -> (String, Vec<String>) {
+        if let Some(token) = cookie_value(headers, self.csrf_name()).filter(|t| valid_token(t)) {
+            return (token, Vec::new());
+        }
+        let (token, cookie) = self.csrf_token_cookie();
+        (token, vec![cookie])
+    }
+
     pub(crate) fn session_cookie(&self, token: &str) -> String {
         self.cookie(self.session_name(), token, SESSION_AGE)
     }

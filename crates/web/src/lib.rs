@@ -3,6 +3,8 @@
 
 mod auth;
 mod auth_cookies;
+mod author;
+mod author_pages;
 mod pages;
 mod password_jobs;
 mod routes;
