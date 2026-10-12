@@ -147,6 +147,13 @@ pub struct OwnedBook {
     pub title: String,
 }
 
+pub struct OwnedChapterSummary {
+    pub id: i64,
+    pub number: i32,
+    pub title: String,
+    pub access: ChapterAccess,
+}
+
 pub struct OwnedChapter {
     pub number: i32,
     pub title: String,
