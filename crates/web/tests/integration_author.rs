@@ -261,8 +261,16 @@ async fn integration_author_create_save_replay_conflict_and_permissions() {
         ("title", "A duplicate work"),
     ]);
     assert_eq!(
-        call(&app, "POST", "/books/new", &duplicate_book, &browser, "http://localhost:3000")
-            .await.0,
+        call(
+            &app,
+            "POST",
+            "/books/new",
+            &duplicate_book,
+            &browser,
+            "http://localhost:3000"
+        )
+        .await
+        .0,
         StatusCode::CONFLICT,
         "canonical source work and language may only exist once"
     );
@@ -324,10 +332,15 @@ async fn integration_author_create_save_replay_conflict_and_permissions() {
     );
     assert_eq!(
         call(
-            &app, "POST", &post_path, &foreign_post,
-            &foreign_browser, "http://localhost:3000",
+            &app,
+            "POST",
+            &post_path,
+            &foreign_post,
+            &foreign_browser,
+            "http://localhost:3000",
         )
-        .await.0,
+        .await
+        .0,
         StatusCode::FORBIDDEN,
         "a valid login and CSRF do not grant another book owner's rights"
     );
