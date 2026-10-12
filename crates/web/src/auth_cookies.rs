@@ -166,7 +166,7 @@ pub(crate) fn private_reader_response<T: IntoResponse>(page: T, cookies: &[Strin
     let mut response = private_response(page, cookies);
     if response.status().is_success() {
         response.headers_mut().insert(
-            header::CONTENT_SECURITY_POLICY,
+            "content-security-policy",
             HeaderValue::from_static(
                 "default-src 'none'; script-src 'self'; connect-src 'self'; \
                  style-src 'self'; img-src 'self'; form-action 'self'; \
@@ -185,9 +185,9 @@ mod tests {
     fn only_reader_can_load_local_script_and_post_progress() {
         let regular = private_response(StatusCode::OK, &[]);
         let reader = private_reader_response(StatusCode::OK, &[]);
-        let strict = regular.headers()[header::CONTENT_SECURITY_POLICY]
+        let strict = regular.headers()["content-security-policy"]
             .to_str().expect("CSP");
-        let relaxed = reader.headers()[header::CONTENT_SECURITY_POLICY]
+        let relaxed = reader.headers()["content-security-policy"]
             .to_str().expect("CSP");
         assert!(strict.contains("script-src 'none'"));
         assert!(relaxed.contains("script-src 'self'"));
