@@ -12,22 +12,6 @@ use sha2::{Digest, Sha256};
 
 const SESSION_TOKEN_BYTES: usize = 32;
 
-/// A deliberately narrow first-step canonical form, not a general email parser.
-pub fn normalize_email(raw: &str) -> Result<String, &'static str> {
-    let email = raw.trim().to_lowercase();
-    if email.len() > 254
-        || email.len() < 3
-        || email.chars().any(|c| c.is_whitespace() || c.is_control())
-    {
-        return Err("Некорректный адрес почты");
-    }
-    let (local, domain) = email.split_once('@').ok_or("Некорректный адрес почты")?;
-    if local.is_empty() || domain.is_empty() || domain.contains('@') {
-        return Err("Некорректный адрес почты");
-    }
-    Ok(email)
-}
-
 /// Uses the Argon2id default parameters and an OS-generated unique salt.
 pub fn hash_password(password: &str) -> Result<String, argon2::password_hash::Error> {
     let salt = SaltString::generate(&mut OsRng);
@@ -62,14 +46,6 @@ pub fn session_token_digest(token: &str) -> [u8; 32] {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn normalized_emails_share_one_database_key() {
-        assert_eq!(normalize_email("  Alice@Example.COM ").unwrap(), "alice@example.com");
-        for invalid in ["", "@host", "name@", "name@@host", "bad name@host", "a\n@host"] {
-            assert!(normalize_email(invalid).is_err(), "{invalid:?}");
-        }
-    }
 
     #[test]
     fn passwords_are_salted_and_never_plaintext() {
