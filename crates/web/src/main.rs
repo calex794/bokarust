@@ -1,4 +1,6 @@
-use bokarust_adapters::{in_memory::InMemoryCatalog, postgres::PgCatalog};
+use bokarust_adapters::{
+    in_memory::InMemoryCatalog, postgres::PgCatalog, postgres_accounts::PgAccounts,
+};
 use bokarust_application::catalog::PublicBookRepository;
 use sqlx::postgres::PgPoolOptions;
 use std::{env, error::Error, net::SocketAddr, sync::Arc, time::Duration};
@@ -8,7 +10,9 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let bind = env::var("BOKARUST_LISTEN_ADDR").unwrap_or_else(|_| "127.0.0.1:3000".to_owned());
     let address: SocketAddr = bind.parse()?;
 
-    let catalog: Arc<dyn PublicBookRepository> = match env::var("DATABASE_URL") {
+    let (catalog, accounts): (Arc<dyn PublicBookRepository>, Option<PgAccounts>) = match env::var(
+        "DATABASE_URL",
+    ) {
         Ok(database_url) => {
             let pool = PgPoolOptions::new()
                 .max_connections(5)
@@ -16,7 +20,10 @@ async fn main() -> Result<(), Box<dyn Error>> {
                 .connect(&database_url)
                 .await?;
             bokarust_adapters::MIGRATOR.run(&pool).await?;
-            Arc::new(PgCatalog::new(pool))
+            (
+                Arc::new(PgCatalog::new(pool.clone())),
+                Some(PgAccounts::from_pool(pool)),
+            )
         }
         Err(env::VarError::NotPresent) => {
             if env::var("BOKARUST_DEMO_IN_MEMORY").as_deref() != Ok("1") {
@@ -28,14 +35,33 @@ async fn main() -> Result<(), Box<dyn Error>> {
             if !address.ip().is_loopback() {
                 return Err("In-memory demo cannot listen on a public interface".into());
             }
-            Arc::new(InMemoryCatalog::default())
+            (Arc::new(InMemoryCatalog::default()), None)
         }
         Err(error) => return Err(error.into()),
     };
 
+    // The only insecure-cookie mode is explicit and restricted to loopback.
+    let insecure = env::var("BOKARUST_INSECURE_COOKIES").as_deref() == Ok("1");
+    if insecure && !address.ip().is_loopback() {
+        return Err("Insecure cookies may be used only on loopback".into());
+    }
+    let public_origin =
+        env::var("BOKARUST_PUBLIC_ORIGIN").unwrap_or_else(|_| format!("http://{address}"));
+    if accounts.is_some() && !address.ip().is_loopback() && !public_origin.starts_with("https://") {
+        return Err("Public binding requires BOKARUST_PUBLIC_ORIGIN with HTTPS".into());
+    }
+    let app = match accounts {
+        Some(accounts) => {
+            bokarust_web::router_with_auth(catalog, accounts, !insecure, public_origin)
+        }
+        None => bokarust_web::router(catalog),
+    };
     let listener = tokio::net::TcpListener::bind(address).await?;
-    let app = bokarust_web::router(catalog);
     println!("BookaRust server listening on http://{address}");
-    axum::serve(listener, app).await?;
+    axum::serve(
+        listener,
+        app.into_make_service_with_connect_info::<SocketAddr>(),
+    )
+    .await?;
     Ok(())
 }

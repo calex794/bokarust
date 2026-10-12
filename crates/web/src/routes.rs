@@ -86,16 +86,29 @@ async fn list_public_books(
     Ok(Json(response))
 }
 
-pub fn router(catalog: Arc<dyn PublicBookRepository>) -> Router {
+fn catalog_router(catalog: Arc<dyn PublicBookRepository>) -> Router {
     Router::new()
         .route("/", get(homepage))
         .route("/catalog", get(catalog_page))
-        .route("/login", get(pages::login))
-        .route("/register", get(pages::register))
         .route("/assets/site.css", get(pages::stylesheet))
         .route("/healthz", get(health))
         .route("/api/v1/books", get(list_public_books))
         .with_state(AppState { catalog })
+}
+
+pub fn router(catalog: Arc<dyn PublicBookRepository>) -> Router {
+    catalog_router(catalog)
+        .route("/login", get(pages::login))
+        .route("/register", get(pages::register))
+}
+
+pub fn router_with_auth(
+    catalog: Arc<dyn PublicBookRepository>,
+    accounts: bokarust_adapters::postgres_accounts::PgAccounts,
+    secure: bool,
+    public_origin: String,
+) -> Router {
+    catalog_router(catalog).merge(crate::auth::router(accounts, secure, public_origin))
 }
 
 #[cfg(test)]

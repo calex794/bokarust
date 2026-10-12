@@ -94,6 +94,23 @@ pub(crate) async fn register() -> impl IntoResponse {
     )
 }
 
+pub(crate) fn registration_form(csrf: &str) -> Html<String> {
+    let body = include_str!("../templates/register_active.html").replace("<!--CSRF_TOKEN-->", csrf);
+    layout("Регистрация", "Создание учётной записи Пандаолейт.", &body)
+}
+
+pub(crate) fn login_form(csrf: &str) -> Html<String> {
+    let body = include_str!("../templates/login_active.html").replace("<!--CSRF_TOKEN-->", csrf);
+    layout("Вход", "Вход в учётную запись Пандаолейт.", &body)
+}
+
+pub(crate) fn my_account(name: &str, csrf: &str) -> Html<String> {
+    let body = include_str!("../templates/me.html")
+        .replace("<!--DISPLAY_NAME-->", &escape_html(name))
+        .replace("<!--CSRF_TOKEN-->", csrf);
+    layout("Кабинет", "Личный кабинет Пандаолейт.", &body)
+}
+
 pub(crate) async fn stylesheet() -> impl IntoResponse {
     (
         [
