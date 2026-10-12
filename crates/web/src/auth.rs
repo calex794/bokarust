@@ -123,7 +123,9 @@ async fn register(
     Form(form): Form<RegisterForm>,
 ) -> Response {
     if !state.cookies.same_origin(&headers)
-        || !state.cookies.valid_csrf(&headers, form.csrf_token.as_deref().unwrap_or(""))
+        || !state
+            .cookies
+            .valid_csrf(&headers, form.csrf_token.as_deref().unwrap_or(""))
     {
         return deny(StatusCode::FORBIDDEN);
     }
@@ -146,19 +148,10 @@ async fn register(
     let ttl = NonZeroU32::new(SESSION_AGE).expect("nonzero session lifetime");
     match state
         .accounts
-        .register_with_session(
-            &account.email,
-            &account.display_name,
-            &hashed,
-            &digest,
-            ttl,
-        )
+        .register_with_session(&account.email, &account.display_name, &hashed, &digest, ttl)
         .await
     {
-        Ok(_) => private_response(
-            Redirect::to("/me"),
-            &[state.cookies.session_cookie(&token)],
-        ),
+        Ok(_) => private_response(Redirect::to("/me"), &[state.cookies.session_cookie(&token)]),
         Err(sqlx::Error::Database(error)) if error.code().as_deref() == Some("23505") => {
             // No user ID or database exception is disclosed.
             private_response(
@@ -177,7 +170,9 @@ async fn login(
     Form(form): Form<LoginForm>,
 ) -> Response {
     if !state.cookies.same_origin(&headers)
-        || !state.cookies.valid_csrf(&headers, form.csrf_token.as_deref().unwrap_or(""))
+        || !state
+            .cookies
+            .valid_csrf(&headers, form.csrf_token.as_deref().unwrap_or(""))
     {
         return deny(StatusCode::FORBIDDEN);
     }
@@ -215,20 +210,27 @@ async fn login(
         return invalid_credentials();
     };
 
-    if state.accounts.clear_auth_attempt(&identity_key).await.is_err() {
+    if state
+        .accounts
+        .clear_auth_attempt(&identity_key)
+        .await
+        .is_err()
+    {
         return deny(StatusCode::SERVICE_UNAVAILABLE);
     }
     let token = generate_session_token();
     let digest = session_token_digest(&token);
     let ttl = NonZeroU32::new(SESSION_AGE).expect("nonzero session lifetime");
-    if state.accounts.insert_session(user.id, &digest, ttl).await.is_err() {
+    if state
+        .accounts
+        .insert_session(user.id, &digest, ttl)
+        .await
+        .is_err()
+    {
         return deny(StatusCode::SERVICE_UNAVAILABLE);
     }
     // No next parameter is accepted: redirects always stay on this site.
-    private_response(
-        Redirect::to("/me"),
-        &[state.cookies.session_cookie(&token)],
-    )
+    private_response(Redirect::to("/me"), &[state.cookies.session_cookie(&token)])
 }
 
 async fn me(State(state): State<AuthState>, headers: HeaderMap) -> Response {
@@ -256,7 +258,9 @@ async fn logout(
     Form(form): Form<LogoutForm>,
 ) -> Response {
     if !state.cookies.same_origin(&headers)
-        || !state.cookies.valid_csrf(&headers, form.csrf_token.as_deref().unwrap_or(""))
+        || !state
+            .cookies
+            .valid_csrf(&headers, form.csrf_token.as_deref().unwrap_or(""))
     {
         return deny(StatusCode::FORBIDDEN);
     }
@@ -266,8 +270,5 @@ async fn logout(
             return deny(StatusCode::SERVICE_UNAVAILABLE);
         }
     }
-    private_response(
-        Redirect::to("/login"),
-        &state.cookies.cleared_cookies(),
-    )
+    private_response(Redirect::to("/login"), &state.cookies.cleared_cookies())
 }

@@ -42,7 +42,11 @@ async fn call(
     let body = to_bytes(response.into_body(), 128 * 1024)
         .await
         .expect("limited body");
-    (status, headers, String::from_utf8(body.to_vec()).expect("utf8"))
+    (
+        status,
+        headers,
+        String::from_utf8(body.to_vec()).expect("utf8"),
+    )
 }
 
 fn cookie(headers: &HeaderMap, name: &str) -> String {
@@ -90,9 +94,11 @@ fn form(fields: &[(&str, &str)]) -> String {
 }
 
 async fn accounts_and_pool() -> (PgAccounts, PgPool) {
-    let url = std::env::var("TEST_DATABASE_URL")
-        .expect("auth integration requires TEST_DATABASE_URL");
-    let accounts = PgAccounts::connect(&url).await.expect("connect test postgres");
+    let url =
+        std::env::var("TEST_DATABASE_URL").expect("auth integration requires TEST_DATABASE_URL");
+    let accounts = PgAccounts::connect(&url)
+        .await
+        .expect("connect test postgres");
     let pool = accounts.pool().clone();
     let name: String = sqlx::query_scalar("SELECT current_database()")
         .fetch_one(&pool)
@@ -139,7 +145,11 @@ async fn integration_auth_registration_to_logout_and_login() {
         ("csrf_token", &token),
     ]);
     let (status, _, _) = call(
-        &app, "POST", "/register", &registration, &csrf_cookie,
+        &app,
+        "POST",
+        "/register",
+        &registration,
+        &csrf_cookie,
         Some("https://evil.example"),
     )
     .await;
@@ -150,8 +160,7 @@ async fn integration_auth_registration_to_logout_and_login() {
         ("display_name", display_name),
         ("password", password),
     ]);
-    let (status, _, _) =
-        call(&app, "POST", "/register", &without_csrf, &csrf_cookie, None).await;
+    let (status, _, _) = call(&app, "POST", "/register", &without_csrf, &csrf_cookie, None).await;
     assert_eq!(status, StatusCode::FORBIDDEN);
 
     let (status, headers, _) =
@@ -162,8 +171,7 @@ async fn integration_auth_registration_to_logout_and_login() {
     let session_cookie = cookie(&headers, "bkr-dev-session");
     assert!(!session_cookie.contains(password));
 
-    let (status, headers, html) =
-        call(&app, "GET", "/me", "", &session_cookie, None).await;
+    let (status, headers, html) = call(&app, "GET", "/me", "", &session_cookie, None).await;
     assert_eq!(status, StatusCode::OK);
     assert!(html.contains("&lt;script&gt;"));
     assert!(!html.contains("<script>"));
@@ -195,8 +203,7 @@ async fn integration_auth_registration_to_logout_and_login() {
     assert_eq!(status, StatusCode::SEE_OTHER);
     assert_eq!(headers[header::LOCATION], "/login");
 
-    let (status, headers, html) =
-        call(&app, "GET", "/login", "", "", None).await;
+    let (status, headers, html) = call(&app, "GET", "/login", "", "", None).await;
     assert_eq!(status, StatusCode::OK);
     let csrf_cookie = cookie(&headers, "bkr-dev-csrf");
     let token = csrf(&html);
@@ -205,8 +212,7 @@ async fn integration_auth_registration_to_logout_and_login() {
         ("password", "wrong-password"),
         ("csrf_token", &token),
     ]);
-    let (status, _, error) =
-        call(&app, "POST", "/login", &wrong, &csrf_cookie, None).await;
+    let (status, _, error) = call(&app, "POST", "/login", &wrong, &csrf_cookie, None).await;
     assert_eq!(status, StatusCode::UNAUTHORIZED);
     assert!(error.contains("Неверный адрес"));
     assert!(!error.contains(&email));
@@ -260,5 +266,8 @@ async fn integration_auth_rate_limiter_is_atomic_and_finite() {
     .await
     .expect("expire window");
     assert!(accounts.permit_auth_attempt(&key, 8, 600).await.unwrap());
-    accounts.clear_auth_attempt(&key).await.expect("cleanup rate key");
+    accounts
+        .clear_auth_attempt(&key)
+        .await
+        .expect("cleanup rate key");
 }

@@ -35,9 +35,7 @@ impl CookiePolicy {
 
     fn cookie(&self, name: &str, value: &str, age: u32) -> String {
         let secure = if self.secure { "; Secure" } else { "" };
-        format!(
-            "{name}={value}; Path=/; Max-Age={age}; HttpOnly; SameSite=Strict{secure}"
-        )
+        format!("{name}={value}; Path=/; Max-Age={age}; HttpOnly; SameSite=Strict{secure}")
     }
 
     pub(crate) fn csrf_token_cookie(&self) -> (String, String) {
@@ -73,11 +71,7 @@ impl CookiePolicy {
     }
 
     pub(crate) fn same_origin(&self, headers: &HeaderMap) -> bool {
-        if headers
-            .get("sec-fetch-site")
-            .and_then(|v| v.to_str().ok())
-            == Some("cross-site")
-        {
+        if headers.get("sec-fetch-site").and_then(|v| v.to_str().ok()) == Some("cross-site") {
             return false;
         }
         match headers.get(header::ORIGIN) {
@@ -118,13 +112,13 @@ fn constant_time_equal(a: &[u8], b: &[u8]) -> bool {
     if a.len() != b.len() {
         return false;
     }
-    a.iter().zip(b).fold(0_u8, |diff, (left, right)| diff | (left ^ right)) == 0
+    a.iter()
+        .zip(b)
+        .fold(0_u8, |diff, (left, right)| diff | (left ^ right))
+        == 0
 }
 
-pub(crate) fn private_response<T: IntoResponse>(
-    result: T,
-    cookies: &[String],
-) -> Response {
+pub(crate) fn private_response<T: IntoResponse>(result: T, cookies: &[String]) -> Response {
     let mut response = result.into_response();
     response
         .headers_mut()
@@ -172,7 +166,10 @@ mod tests {
             assert!(cookie.contains("; Path=/"));
             assert!(!cookie.contains("Domain="));
         }
-        assert!(config.cleared_cookies().iter().all(|x| x.contains("Max-Age=0")));
+        assert!(config
+            .cleared_cookies()
+            .iter()
+            .all(|x| x.contains("Max-Age=0")));
         assert!(!policy(false).session_cookie(&token).contains("; Secure"));
     }
 
@@ -181,14 +178,23 @@ mod tests {
         let config = policy(true);
         let (token, value) = config.csrf_token_cookie();
         let mut headers = HeaderMap::new();
-        headers.insert(header::COOKIE, format!("{}={}", config.csrf_name(), token).parse().unwrap());
+        headers.insert(
+            header::COOKIE,
+            format!("{}={}", config.csrf_name(), token).parse().unwrap(),
+        );
         assert!(config.valid_csrf(&headers, &token));
         assert!(!config.valid_csrf(&headers, "invalid"));
         headers.insert(
             header::COOKIE,
-            format!("{}={}; {}={}", config.csrf_name(), token, config.csrf_name(), token)
-                .parse()
-                .unwrap(),
+            format!(
+                "{}={}; {}={}",
+                config.csrf_name(),
+                token,
+                config.csrf_name(),
+                token
+            )
+            .parse()
+            .unwrap(),
         );
         assert!(!config.valid_csrf(&headers, &token));
         assert!(value.contains("Max-Age=3600"));
