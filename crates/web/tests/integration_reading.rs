@@ -53,7 +53,7 @@ async fn chapter(
     access: &str,
 ) -> i64 {
     sqlx::query_scalar(
-        "INSERT INTO chapters (book_id,chapter_no,title,visibility,access_level,price_cents) \
+        "INSERT INTO chapters (book_id,chapter_no,title,visibility,access_level,price_amount) \
         VALUES ($1,$2,$3,$4,$5,CASE WHEN $5 = 'paid' THEN 100 ELSE 0 END) RETURNING id",
     )
     .bind(book_id)
