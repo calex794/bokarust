@@ -89,12 +89,10 @@ async fn limit(
     state: &AuthState,
     action: &str,
     email: &str,
-    peer: Option<ConnectInfo<SocketAddr>>,
+    peer: ConnectInfo<SocketAddr>,
 ) -> Result<[u8; 32], StatusCode> {
     let identity_key = session_token_digest(&format!("auth:{action}:identity:{email}"));
-    let ip = peer
-        .map(|ConnectInfo(address)| address.ip().to_string())
-        .unwrap_or_else(|| "missing-peer".to_owned());
+    let ip = peer.0.ip().to_string();
     let address_key = session_token_digest(&format!("auth:{action}:peer:{ip}"));
     // No in-process counters: these limits apply across all server processes.
     let address_ok = state
@@ -119,7 +117,7 @@ async fn limit(
 async fn register(
     State(state): State<AuthState>,
     headers: HeaderMap,
-    peer: Option<ConnectInfo<SocketAddr>>,
+    peer: ConnectInfo<SocketAddr>,
     Form(form): Form<RegisterForm>,
 ) -> Response {
     if !state.cookies.same_origin(&headers)
@@ -166,7 +164,7 @@ async fn register(
 async fn login(
     State(state): State<AuthState>,
     headers: HeaderMap,
-    peer: Option<ConnectInfo<SocketAddr>>,
+    peer: ConnectInfo<SocketAddr>,
     Form(form): Form<LoginForm>,
 ) -> Response {
     if !state.cookies.same_origin(&headers)
