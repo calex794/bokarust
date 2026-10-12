@@ -92,14 +92,12 @@ async fn existing_chapter(
     .execute(&mut **tx)
     .await
     .map_err(db)?;
-    sqlx::query(
-        "UPDATE chapter_publications SET version_id = $2 WHERE chapter_id = $1",
-    )
-    .bind(chapter_id)
-    .bind(version_id)
-    .execute(&mut **tx)
-    .await
-    .map_err(db)?;
+    sqlx::query("UPDATE chapter_publications SET version_id = $2 WHERE chapter_id = $1")
+        .bind(chapter_id)
+        .bind(version_id)
+        .execute(&mut **tx)
+        .await
+        .map_err(db)?;
     Ok((chapter_id, version_id, revision + 1))
 }
 
@@ -121,14 +119,12 @@ async fn new_chapter(
     .await
     .map_err(db)?;
     let version_id = text_version(tx, chapter_id, &input.body).await?;
-    sqlx::query(
-        "INSERT INTO chapter_publications (chapter_id, version_id) VALUES ($1, $2)",
-    )
-    .bind(chapter_id)
-    .bind(version_id)
-    .execute(&mut **tx)
-    .await
-    .map_err(db)?;
+    sqlx::query("INSERT INTO chapter_publications (chapter_id, version_id) VALUES ($1, $2)")
+        .bind(chapter_id)
+        .bind(version_id)
+        .execute(&mut **tx)
+        .await
+        .map_err(db)?;
     // First release is a durable fact, independent of future notifications.
     sqlx::query(
         "INSERT INTO chapter_first_release_events (chapter_id, version_id) VALUES ($1, $2)",
@@ -204,11 +200,17 @@ impl PgAuthor {
                 return Err(AuthorError::Conflict);
             }
             return Ok(SavedChapter {
-                chapter_id: row.try_get::<Option<i64>, _>("chapter_id").map_err(db)?
+                chapter_id: row
+                    .try_get::<Option<i64>, _>("chapter_id")
+                    .map_err(db)?
                     .ok_or(AuthorError::Unavailable)?,
-                version_id: row.try_get::<Option<i64>, _>("version_id").map_err(db)?
+                version_id: row
+                    .try_get::<Option<i64>, _>("version_id")
+                    .map_err(db)?
                     .ok_or(AuthorError::Unavailable)?,
-                revision: row.try_get::<Option<i64>, _>("saved_revision").map_err(db)?
+                revision: row
+                    .try_get::<Option<i64>, _>("saved_revision")
+                    .map_err(db)?
                     .ok_or(AuthorError::Unavailable)?,
             });
         }
