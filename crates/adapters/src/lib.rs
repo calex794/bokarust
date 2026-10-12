@@ -2,6 +2,9 @@
 #![forbid(unsafe_code)]
 
 pub mod account_security;
+pub mod postgres_author;
+mod postgres_author_books;
+mod postgres_author_chapters;
 pub mod in_memory;
 pub mod postgres;
 pub mod postgres_accounts;
