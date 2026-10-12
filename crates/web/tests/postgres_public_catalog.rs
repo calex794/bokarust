@@ -75,7 +75,7 @@ async fn integration_postgres_catalog_hides_drafts_and_enforces_identity() {
             .expect("check migrated table");
         assert!(table_name.is_some(), "missing table: {table}");
     }
-    sqlx::query("TRUNCATE TABLE books RESTART IDENTITY")
+    sqlx::query("TRUNCATE TABLE chapter_publications, chapter_versions, chapters, books RESTART IDENTITY")
         .execute(&pool)
         .await
         .expect("clear isolated test database");
