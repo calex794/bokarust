@@ -54,8 +54,7 @@ impl PublicBookRepository for PgCatalog {
                 let id = u64::try_from(id).map_err(|_| CatalogError::Unavailable)?;
                 let key = BookKey::new(source_identity, target_language)
                     .map_err(|_| CatalogError::Unavailable)?;
-                Book::new(id, key, title, Visibility::Public)
-                    .map_err(|_| CatalogError::Unavailable)
+                Book::new(id, key, title, Visibility::Public).map_err(|_| CatalogError::Unavailable)
             })
             .collect()
     }

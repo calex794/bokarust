@@ -72,12 +72,11 @@ async fn postgres_catalog_hides_drafts_and_enforces_identity() {
         .await
         .expect("account migration entry point must use the same schema");
     for table in ["users", "sessions", "books"] {
-        let table_name: Option<String> =
-            sqlx::query_scalar("SELECT to_regclass($1)::text")
-                .bind(format!("public.{table}"))
-                .fetch_one(&pool)
-                .await
-                .expect("check migrated table");
+        let table_name: Option<String> = sqlx::query_scalar("SELECT to_regclass($1)::text")
+            .bind(format!("public.{table}"))
+            .fetch_one(&pool)
+            .await
+            .expect("check migrated table");
         assert!(table_name.is_some(), "missing table: {table}");
     }
     sqlx::query("TRUNCATE TABLE books RESTART IDENTITY")
@@ -125,7 +124,11 @@ async fn postgres_catalog_hides_drafts_and_enforces_identity() {
     let race_one = insert_book(&pool, "source:race", "ru", "First", "public");
     let race_two = insert_book(&pool, "source:race", "ru", "Second", "public");
     let (a, b) = tokio::join!(race_one, race_two);
-    assert_ne!(a.is_ok(), b.is_ok(), "concurrent duplicate must be rejected");
+    assert_ne!(
+        a.is_ok(),
+        b.is_ok(),
+        "concurrent duplicate must be rejected"
+    );
     let row = sqlx::query(
         "SELECT COUNT(*) AS count FROM books \
          WHERE source_identity = 'source:race' AND target_language = 'ru'",
