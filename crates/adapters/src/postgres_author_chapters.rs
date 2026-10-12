@@ -47,7 +47,7 @@ async fn existing_chapter(
 ) -> Result<(i64, i64, i64), AuthorError> {
     let chapter_id = input.chapter_id.ok_or(AuthorError::Invalid)?;
     let row = sqlx::query(
-        "SELECT c.chapter_no, c.title, c.access_level, c.price_cents, c.edit_revision, \
+        "SELECT c.chapter_no, c.title, c.access_level, c.price_amount, c.edit_revision, \
                 c.visibility, p.version_id, v.body_markdown \
          FROM chapters c \
          JOIN chapter_publications p ON p.chapter_id = c.id \
@@ -71,7 +71,7 @@ async fn existing_chapter(
     let unchanged = old_text == input.body
         && row.try_get::<String, _>("title").map_err(db)? == input.title
         && row.try_get::<String, _>("access_level").map_err(db)? == input.access.as_str()
-        && row.try_get::<i64, _>("price_cents").map_err(db)? == input.price_cents
+        && row.try_get::<i64, _>("price_amount").map_err(db)? == input.price_amount
         && row.try_get::<String, _>("visibility").map_err(db)? == "public";
     if unchanged {
         return Ok((chapter_id, published_version, revision));
@@ -82,13 +82,13 @@ async fn existing_chapter(
         text_version(tx, chapter_id, &input.body).await?
     };
     sqlx::query(
-        "UPDATE chapters SET title = $2, access_level = $3, price_cents = $4, \
+        "UPDATE chapters SET title = $2, access_level = $3, price_amount = $4, \
          visibility = 'public', edit_revision = edit_revision + 1 WHERE id = $1",
     )
     .bind(chapter_id)
     .bind(&input.title)
     .bind(input.access.as_str())
-    .bind(input.price_cents)
+    .bind(input.price_amount)
     .execute(&mut **tx)
     .await
     .map_err(db)?;
@@ -107,14 +107,14 @@ async fn new_chapter(
 ) -> Result<(i64, i64, i64), AuthorError> {
     let chapter_id: i64 = sqlx::query_scalar(
         "INSERT INTO chapters \
-         (book_id, chapter_no, title, visibility, access_level, price_cents, edit_revision) \
+         (book_id, chapter_no, title, visibility, access_level, price_amount, edit_revision) \
          VALUES ($1, $2, $3, 'public', $4, $5, 1) RETURNING id",
     )
     .bind(input.book_id)
     .bind(input.number)
     .bind(&input.title)
     .bind(input.access.as_str())
-    .bind(input.price_cents)
+    .bind(input.price_amount)
     .fetch_one(&mut **tx)
     .await
     .map_err(db)?;
@@ -150,7 +150,7 @@ impl PgAuthor {
         let book_id = input.book_id.to_be_bytes();
         let number = input.number.to_be_bytes();
         let expected = input.expected_revision.to_be_bytes();
-        let price = input.price_cents.to_be_bytes();
+        let price = input.price_amount.to_be_bytes();
         let digest = payload_digest(&[
             b"save-chapter",
             &book_id,
