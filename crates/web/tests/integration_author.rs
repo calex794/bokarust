@@ -253,6 +253,20 @@ async fn integration_author_create_save_replay_conflict_and_permissions() {
         StatusCode::CONFLICT
     );
     changed_book_form.clear();
+    let duplicate_book = form(&[
+        ("csrf_token", &csrf),
+        ("command_key", &generate_session_token()),
+        ("source_identity", &source),
+        ("target_language", "ru"),
+        ("title", "A duplicate work"),
+    ]);
+    assert_eq!(
+        call(&app, "POST", "/books/new", &duplicate_book, &browser, "http://localhost:3000")
+            .await.0,
+        StatusCode::CONFLICT,
+        "canonical source work and language may only exist once"
+    );
+
     let (status, _, detail) = call(&app, "GET", &format!("/books/{book_id}"), "", "", "").await;
     assert_eq!(status, StatusCode::OK);
     assert!(detail.contains("&lt;My book &amp; one&gt;"));
@@ -290,6 +304,34 @@ async fn integration_author_create_save_replay_conflict_and_permissions() {
         "0",
     );
     let post_path = format!("/books/{book_id}/chapters");
+    let (status, foreign_headers, foreign_form) =
+        call(&app, "GET", "/books/new", "", &foreign_session, "").await;
+    assert_eq!(status, StatusCode::OK);
+    let foreign_browser = format!(
+        "{}; {}",
+        foreign_session,
+        cookie(&foreign_headers, "bkr-dev-csrf"),
+    );
+    let foreign_csrf = field(&foreign_form, "csrf_token");
+    let foreign_post = chapter_body(
+        &foreign_csrf,
+        &generate_session_token(),
+        "0",
+        "Stolen chapter",
+        "Private content",
+        "free",
+        "0",
+    );
+    assert_eq!(
+        call(
+            &app, "POST", &post_path, &foreign_post,
+            &foreign_browser, "http://localhost:3000",
+        )
+        .await.0,
+        StatusCode::FORBIDDEN,
+        "a valid login and CSRF do not grant another book owner's rights"
+    );
+
     assert_eq!(
         call(
             &app,
