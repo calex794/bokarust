@@ -6,16 +6,18 @@ use bokarust_application::{catalog::PublicBookRepository, reading::PublicReading
 use sqlx::postgres::PgPoolOptions;
 use std::{env, error::Error, net::SocketAddr, sync::Arc, time::Duration};
 
+type BootDependencies = (
+    Arc<dyn PublicBookRepository>,
+    Option<PgAccounts>,
+    Option<Arc<dyn PublicReadingRepository>>,
+);
+
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
     let bind = env::var("BOKARUST_LISTEN_ADDR").unwrap_or_else(|_| "127.0.0.1:3000".to_owned());
     let address: SocketAddr = bind.parse()?;
 
-    let (catalog, accounts, reader): (
-        Arc<dyn PublicBookRepository>,
-        Option<PgAccounts>,
-        Option<Arc<dyn PublicReadingRepository>>,
-    ) = match env::var("DATABASE_URL") {
+    let (catalog, accounts, reader): BootDependencies = match env::var("DATABASE_URL") {
         Ok(database_url) => {
             let pool = PgPoolOptions::new()
                 .max_connections(5)
