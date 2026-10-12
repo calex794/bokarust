@@ -2,11 +2,12 @@
 
 use bokarust_adapters::{
     account_security::{
-        generate_session_token, hash_password, normalize_email, session_token_digest,
+        generate_session_token, hash_password, session_token_digest,
         verify_password,
     },
     postgres_accounts::PgAccounts,
 };
+use bokarust_domain::accounts::normalize_email;
 use std::num::NonZeroU32;
 
 #[tokio::test]
