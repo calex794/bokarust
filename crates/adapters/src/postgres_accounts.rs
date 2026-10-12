@@ -37,7 +37,7 @@ impl PgAccounts {
 
     /// Invoke explicitly before accepting traffic. Migrations are versioned.
     pub async fn migrate(&self) -> Result<(), sqlx::migrate::MigrateError> {
-        sqlx::migrate!("./migrations").run(&self.pool).await
+        crate::MIGRATOR.run(&self.pool).await
     }
 
     /// A concurrent duplicate is rejected by PostgreSQL's unique constraint.
