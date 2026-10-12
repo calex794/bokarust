@@ -1,7 +1,8 @@
 use bokarust_adapters::{
     in_memory::InMemoryCatalog, postgres::PgCatalog, postgres_accounts::PgAccounts,
+    postgres_reading::PgReader,
 };
-use bokarust_application::catalog::PublicBookRepository;
+use bokarust_application::{catalog::PublicBookRepository, reading::PublicReadingRepository};
 use sqlx::postgres::PgPoolOptions;
 use std::{env, error::Error, net::SocketAddr, sync::Arc, time::Duration};
 
@@ -10,9 +11,11 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let bind = env::var("BOKARUST_LISTEN_ADDR").unwrap_or_else(|_| "127.0.0.1:3000".to_owned());
     let address: SocketAddr = bind.parse()?;
 
-    let (catalog, accounts): (Arc<dyn PublicBookRepository>, Option<PgAccounts>) = match env::var(
-        "DATABASE_URL",
-    ) {
+    let (catalog, accounts, reader): (
+        Arc<dyn PublicBookRepository>,
+        Option<PgAccounts>,
+        Option<Arc<dyn PublicReadingRepository>>,
+    ) = match env::var("DATABASE_URL") {
         Ok(database_url) => {
             let pool = PgPoolOptions::new()
                 .max_connections(5)
@@ -22,7 +25,8 @@ async fn main() -> Result<(), Box<dyn Error>> {
             bokarust_adapters::MIGRATOR.run(&pool).await?;
             (
                 Arc::new(PgCatalog::new(pool.clone())),
-                Some(PgAccounts::from_pool(pool)),
+                Some(PgAccounts::from_pool(pool.clone())),
+                Some(Arc::new(PgReader::new(pool))),
             )
         }
         Err(env::VarError::NotPresent) => {
@@ -35,7 +39,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
             if !address.ip().is_loopback() {
                 return Err("In-memory demo cannot listen on a public interface".into());
             }
-            (Arc::new(InMemoryCatalog::default()), None)
+            (Arc::new(InMemoryCatalog::default()), None, None)
         }
         Err(error) => return Err(error.into()),
     };
@@ -52,7 +56,10 @@ async fn main() -> Result<(), Box<dyn Error>> {
     }
     let app = match accounts {
         Some(accounts) => {
-            bokarust_web::router_with_auth(catalog, accounts, !insecure, public_origin)
+            let reader = reader.expect("PostgreSQL reader accompanies PostgreSQL accounts");
+            bokarust_web::router_with_auth_and_reading(
+                catalog, reader, accounts, !insecure, public_origin,
+            )
         }
         None => bokarust_web::router(catalog),
     };

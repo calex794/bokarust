@@ -181,3 +181,17 @@ button:disabled, input:disabled { cursor: not-allowed; }
   .book-grid { grid-template-columns: 1fr; }
   .auth-card { padding: 24px; }
 }
+
+/* First read-only public chapter view: intentionally no client scripting. */
+.book-card__title a { text-decoration: none; }
+.book-card__title a:hover { text-decoration: underline; }
+.book-detail h1, .reader-page h1 { font-size: clamp(28px, 4vw, 44px); overflow-wrap: anywhere; }
+.chapter-list { display: grid; gap: 12px; padding-left: 24px; line-height: 1.7; }
+.chapter-list a { color: #27613f; }
+.reader-width { max-width: 820px; }
+.chapter-content {
+  margin-top: 30px; white-space: pre-wrap; overflow-wrap: anywhere;
+  font-family: Georgia, "Times New Roman", serif; font-size: 19px;
+  line-height: 1.85; background: #fff; border: 1px solid #e1e8e0;
+  border-radius: 14px; padding: 28px; color: #29342e;
+}
