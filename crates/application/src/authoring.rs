@@ -80,7 +80,7 @@ pub struct SaveChapter {
     pub title: String,
     pub body: String,
     pub access: ChapterAccess,
-    pub price_cents: i64,
+    pub price_amount: i64,
     pub command_key: String,
 }
 
@@ -92,7 +92,7 @@ pub struct SaveChapterRequest<'a> {
     pub title: &'a str,
     pub body: &'a str,
     pub access: &'a str,
-    pub price_cents: i64,
+    pub price_amount: i64,
     pub command_key: &'a str,
 }
 
@@ -120,8 +120,8 @@ pub fn save_chapter(input: SaveChapterRequest<'_>) -> Result<SaveChapter, Author
         || body.contains('\0')
         || !valid_command_key(input.command_key)
         || match access {
-            ChapterAccess::Free => input.price_cents != 0,
-            ChapterAccess::Paid => !(1..=10_000_000).contains(&input.price_cents),
+            ChapterAccess::Free => input.price_amount != 0,
+            ChapterAccess::Paid => !(1..=10_000_000).contains(&input.price_amount),
         }
     {
         return Err(AuthorError::Invalid);
@@ -134,7 +134,7 @@ pub fn save_chapter(input: SaveChapterRequest<'_>) -> Result<SaveChapter, Author
         title: title.to_owned(),
         body,
         access,
-        price_cents: input.price_cents,
+        price_amount: input.price_amount,
         command_key: input.command_key.to_owned(),
     })
 }
@@ -163,7 +163,7 @@ pub struct OwnedChapter {
     pub title: String,
     pub body: String,
     pub access: ChapterAccess,
-    pub price_cents: i64,
+    pub price_amount: i64,
     pub revision: i64,
 }
 
@@ -191,7 +191,7 @@ mod tests {
                 title: "Глава",
                 body,
                 access: "free",
-                price_cents: 0,
+                price_amount: 0,
                 command_key: KEY,
             }
         }
@@ -226,7 +226,7 @@ mod tests {
             title: "Глава",
             body: "Текст",
             access: "paid",
-            price_cents: 0,
+            price_amount: 0,
             command_key: KEY,
         };
         assert_eq!(save_chapter(base).unwrap_err(), AuthorError::Invalid);
