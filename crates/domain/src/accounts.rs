@@ -24,13 +24,26 @@ mod tests {
 
     #[test]
     fn email_case_and_surrounding_spaces_do_not_create_an_alias() {
-        assert_eq!(normalize_email("  Alice@Example.COM ").unwrap(), "alice@example.com");
-        assert_eq!(normalize_email("ALICE@example.com").unwrap(), "alice@example.com");
+        assert_eq!(
+            normalize_email("  Alice@Example.COM ").unwrap(),
+            "alice@example.com"
+        );
+        assert_eq!(
+            normalize_email("ALICE@example.com").unwrap(),
+            "alice@example.com"
+        );
     }
 
     #[test]
     fn rejects_malformed_emails_without_rewriting_provider_aliases() {
-        for invalid in ["", "@host", "name@", "name@@host", "bad name@host", "a\n@host"] {
+        for invalid in [
+            "",
+            "@host",
+            "name@",
+            "name@@host",
+            "bad name@host",
+            "a\n@host",
+        ] {
             assert!(normalize_email(invalid).is_err(), "{invalid:?}");
         }
         assert_eq!(
