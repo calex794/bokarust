@@ -1,0 +1,16 @@
+<section class="section auth-section"><div class="container author-width">
+  <p class="eyebrow">Мои книги</p><h1>Новая книга</h1>
+  <p class="page-description">Укажите исходное произведение и язык перевода. Книга появится в каталоге сразу.</p>
+  <form class="auth-form author-form" method="post" action="/books/new">
+    <input type="hidden" name="csrf_token" value="<!--CSRF-->">
+    <input type="hidden" name="command_key" value="<!--KEY-->">
+    <label for="source">Идентификатор исходного произведения</label>
+    <input id="source" type="text" name="source_identity" minlength="1" maxlength="256" required>
+    <label for="language">Язык перевода</label>
+    <input id="language" type="text" name="target_language" value="ru" maxlength="32" required>
+    <label for="title">Название книги</label>
+    <input id="title" type="text" name="title" maxlength="200" required>
+    <button class="button" type="submit">Создать книгу</button>
+  </form>
+  <p><a href="/me/books">← Мои книги</a></p>
+</div></section>
