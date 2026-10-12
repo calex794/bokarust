@@ -2,6 +2,7 @@
 #![forbid(unsafe_code)]
 
 mod auth;
+mod auth_hashing;
 mod auth_cookies;
 mod pages;
 mod routes;
