@@ -6,9 +6,9 @@ mod auth_cookies;
 mod author;
 mod author_pages;
 mod pages;
+mod password_jobs;
 mod reading_pages;
 mod reading_private;
-mod password_jobs;
 mod routes;
 
 pub use routes::{router, router_with_auth, router_with_auth_and_reading};
