@@ -63,7 +63,7 @@ impl AuthState {
         attempts.remove(&session_token_digest(email));
     }
 
-    async fn password_job<T, F>(&self, job: F) -> Result<T, StatusCode>
+    pub(crate) async fn password_job<T, F>(&self, job: F) -> Result<T, StatusCode>
     where
         T: Send + 'static,
         F: FnOnce() -> T + Send + 'static,
