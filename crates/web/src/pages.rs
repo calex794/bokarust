@@ -154,6 +154,18 @@ pub(crate) fn my_account(name: &str, csrf: &str) -> Html<String> {
     layout("Кабинет", "Личный кабинет Пандаолейт.", &body)
 }
 
+/// Browser enhancement is a separate static asset, with a strict MIME type.
+pub(crate) async fn reader_progress_script() -> impl IntoResponse {
+    (
+        [
+            (header::CONTENT_TYPE, "text/javascript; charset=utf-8"),
+            (header::CACHE_CONTROL, "public, max-age=3600"),
+            (header::X_CONTENT_TYPE_OPTIONS, "nosniff"),
+        ],
+        include_str!("../assets/reader-progress.js"),
+    )
+}
+
 pub(crate) async fn stylesheet() -> impl IntoResponse {
     (
         [
