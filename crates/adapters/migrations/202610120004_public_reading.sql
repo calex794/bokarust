@@ -35,12 +35,12 @@ CREATE TABLE chapter_versions (
 -- Purging old data requires a separate explicit retention policy.
 CREATE FUNCTION reject_chapter_version_update()
 RETURNS trigger
-LANGUAGE plpgsql AS $
+LANGUAGE plpgsql AS $chapter_version_update$
 BEGIN
     RAISE EXCEPTION 'chapter version must be immutable'
         USING ERRCODE = '23514';
 END;
-$;
+$chapter_version_update$;
 
 CREATE TRIGGER chapter_version_reject_update
     BEFORE UPDATE ON chapter_versions
