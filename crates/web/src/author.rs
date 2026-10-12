@@ -42,7 +42,7 @@ struct ChapterForm {
     title: String,
     body_markdown: String,
     access_level: String,
-    price_cents: i64,
+    price_amount: i64,
     command_key: String,
     csrf_token: String,
 }
@@ -244,7 +244,7 @@ async fn save(
         title: &form.title,
         body: &form.body_markdown,
         access: &form.access_level,
-        price_cents: form.price_cents,
+        price_amount: form.price_amount,
         command_key: &form.command_key,
     }) {
         Ok(input) => input,
