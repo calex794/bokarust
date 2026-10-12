@@ -19,7 +19,10 @@ impl fmt::Display for AuthorError {
 impl Error for AuthorError {}
 
 pub fn valid_command_key(key: &str) -> bool {
-    key.len() == 43 && key.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'-' || b == b'_')
+    key.len() == 43
+        && key
+            .bytes()
+            .all(|b| b.is_ascii_alphanumeric() || b == b'-' || b == b'_')
 }
 
 #[derive(Debug)]
@@ -95,7 +98,8 @@ pub struct SaveChapterRequest<'a> {
 
 pub fn save_chapter(input: SaveChapterRequest<'_>) -> Result<SaveChapter, AuthorError> {
     let book_id = i64::try_from(input.book_id).map_err(|_| AuthorError::Invalid)?;
-    let chapter_id = input.chapter_id
+    let chapter_id = input
+        .chapter_id
         .map(|id| i64::try_from(id).map_err(|_| AuthorError::Invalid))
         .transpose()?;
     let title = input.title.trim();
@@ -179,23 +183,48 @@ mod tests {
     #[test]
     fn chapter_is_published_on_save_with_a_fixed_maximum_length() {
         let input = |body: &str| SaveChapterRequest {
-            book_id: 1, chapter_id: None, number: 1, expected_revision: 0,
-            title: "Глава", body, access: "free", price_cents: 0, command_key: KEY,
+            book_id: 1,
+            chapter_id: None,
+            number: 1,
+            expected_revision: 0,
+            title: "Глава",
+            body,
+            access: "free",
+            price_cents: 0,
+            command_key: KEY,
         };
-        assert_eq!(save_chapter(input(&"я".repeat(50_000))).unwrap().body.chars().count(), 50_000);
-        assert_eq!(save_chapter(input(&"я".repeat(50_001))).unwrap_err(), AuthorError::Invalid);
+        assert_eq!(
+            save_chapter(input(&"я".repeat(50_000)))
+                .unwrap()
+                .body
+                .chars()
+                .count(),
+            50_000
+        );
+        assert_eq!(
+            save_chapter(input(&"я".repeat(50_001))).unwrap_err(),
+            AuthorError::Invalid
+        );
         assert!(save_chapter(input("")).is_err());
         assert!(save_chapter(SaveChapterRequest {
-            expected_revision: 1, ..input("hello")
-        }).is_err());
+            expected_revision: 1,
+            ..input("hello")
+        })
+        .is_err());
         assert_eq!(save_chapter(input("a\r\nb")).unwrap().body, "a\nb");
     }
 
     #[test]
     fn paid_chapter_requires_a_positive_price() {
         let base = SaveChapterRequest {
-            book_id: 1, chapter_id: Some(1), number: 1, expected_revision: 1,
-            title: "Глава", body: "Текст", access: "paid", price_cents: 0,
+            book_id: 1,
+            chapter_id: Some(1),
+            number: 1,
+            expected_revision: 1,
+            title: "Глава",
+            body: "Текст",
+            access: "paid",
+            price_cents: 0,
             command_key: KEY,
         };
         assert_eq!(save_chapter(base).unwrap_err(), AuthorError::Invalid);
