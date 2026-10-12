@@ -9,6 +9,7 @@ pub mod postgres_author;
 mod postgres_author_books;
 mod postgres_author_chapters;
 pub mod postgres_reading;
+pub mod postgres_progress;
 
 /// Shared versioned migrations for accounts, sessions, and books.
 pub static MIGRATOR: sqlx::migrate::Migrator = sqlx::migrate!("./migrations");
