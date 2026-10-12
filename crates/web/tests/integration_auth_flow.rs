@@ -34,7 +34,9 @@ async fn call(
     }
     let mut request = request.body(Body::from(body.to_owned())).expect("request");
     request.extensions_mut().insert(axum::extract::ConnectInfo(
-        "127.0.0.1:58321".parse::<std::net::SocketAddr>().expect("test peer"),
+        "127.0.0.1:58321"
+            .parse::<std::net::SocketAddr>()
+            .expect("test peer"),
     ));
     let response = app.clone().oneshot(request).await.expect("response");
     let status = response.status();
