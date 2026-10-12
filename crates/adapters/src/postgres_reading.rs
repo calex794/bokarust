@@ -92,7 +92,7 @@ impl PublicReadingRepository for PgReader {
         // Never rely on filtering navigation links, the homepage or an earlier request.
         let row = sqlx::query(
             "SELECT b.id AS book_id, b.title AS book_title, \
-                    c.title AS chapter_title, v.version_no, v.body_markdown \
+                    c.title AS chapter_title, p.version_id, v.version_no, v.body_markdown \
              FROM chapters AS c \
              JOIN books AS b ON b.id = c.book_id \
              JOIN chapter_publications AS p ON p.chapter_id = c.id \
@@ -108,6 +108,7 @@ impl PublicReadingRepository for PgReader {
         .map_err(map_db)?;
         row.map(|row| {
             Ok(PublicChapterPage {
+                version_id: positive_id(row.try_get("version_id").map_err(map_db)?)?,
                 book_id: positive_id(row.try_get("book_id").map_err(map_db)?)?,
                 book_title: row.try_get("book_title").map_err(map_db)?,
                 chapter_title: row.try_get("chapter_title").map_err(map_db)?,
