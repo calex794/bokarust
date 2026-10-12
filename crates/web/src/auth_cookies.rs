@@ -186,16 +186,17 @@ mod tests {
         let regular = private_response(StatusCode::OK, &[]);
         let reader = private_reader_response(StatusCode::OK, &[]);
         let strict = regular.headers()["content-security-policy"]
-            .to_str().expect("CSP");
+            .to_str()
+            .expect("CSP");
         let relaxed = reader.headers()["content-security-policy"]
-            .to_str().expect("CSP");
+            .to_str()
+            .expect("CSP");
         assert!(strict.contains("script-src 'none'"));
         assert!(relaxed.contains("script-src 'self'"));
         assert!(relaxed.contains("connect-src 'self'"));
         assert!(!relaxed.contains("'unsafe-inline'"));
         assert_eq!(reader.headers()[header::CACHE_CONTROL], "no-store");
     }
-
 
     fn policy(secure: bool) -> CookiePolicy {
         CookiePolicy {
