@@ -6,6 +6,8 @@ mod auth_cookies;
 mod author;
 mod author_pages;
 mod pages;
+mod reading_pages;
+mod reading_private;
 mod password_jobs;
 mod routes;
 
