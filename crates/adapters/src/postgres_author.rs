@@ -1,6 +1,6 @@
 //! Author-owned book reads and shared transaction primitives.
 #![forbid(unsafe_code)]
-use bokarust_application::authoring::{AuthorError, ChapterAccess, OwnedBook, OwnedChapter};
+use bokarust_application::authoring::{AuthorError, ChapterAccess, OwnedBook, OwnedChapter, OwnedChapterSummary};
 use sha2::{Digest, Sha256};
 use sqlx::{PgPool, Postgres, Row, Transaction};
 
@@ -50,6 +50,42 @@ impl PgAuthor {
             title: r.try_get("title").map_err(db)?,
         }))
         .transpose()
+    }
+
+    pub async fn my_chapters(
+        &self,
+        user_id: i64,
+        book_id: i64,
+    ) -> Result<Vec<OwnedChapterSummary>, AuthorError> {
+        let rows = sqlx::query(
+            "SELECT c.id, c.chapter_no, c.title, c.access_level FROM chapters c \
+             JOIN books b ON b.id = c.book_id \
+             WHERE c.book_id = $1 AND b.owner_user_id = $2 \
+               AND NOT b.admin_hold AND NOT b.is_deleted \
+               AND NOT c.admin_hold AND NOT c.is_deleted \
+             ORDER BY c.chapter_no LIMIT 200",
+        )
+        .bind(book_id)
+        .bind(user_id)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(db)?;
+        rows.into_iter()
+            .map(|r| {
+                let access: String = r.try_get("access_level").map_err(db)?;
+                let access = match access.as_str() {
+                    "free" => ChapterAccess::Free,
+                    "paid" => ChapterAccess::Paid,
+                    _ => return Err(AuthorError::Unavailable),
+                };
+                Ok(OwnedChapterSummary {
+                    id: r.try_get("id").map_err(db)?,
+                    number: r.try_get("chapter_no").map_err(db)?,
+                    title: r.try_get("title").map_err(db)?,
+                    access,
+                })
+            })
+            .collect()
     }
 
     pub async fn owned_chapter(
