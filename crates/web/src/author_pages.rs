@@ -92,7 +92,7 @@ pub(crate) fn chapter_form(
     let body = chapter.map_or("", |c| c.body.as_str());
     let revision = chapter.map_or(0, |c| c.revision);
     let access = chapter.map_or(ChapterAccess::Free, |c| c.access);
-    let price = chapter.map_or(0, |c| c.price_cents);
+    let price = chapter.map_or(0, |c| c.price_amount);
     let html = include_str!("../templates/chapter_author_form.html")
         .replace("<!--PAGE_HEADING-->", heading)
         .replace("<!--ACTION-->", &action)
@@ -140,7 +140,7 @@ mod tests {
             title: "<x>".into(),
             body: "</textarea><script>boom</script>".into(),
             access: ChapterAccess::Free,
-            price_cents: 0,
+            price_amount: 0,
             revision: 1,
         };
         let html = chapter_form(3, Some(4), Some(&chapter), "safe", "safe").0;
