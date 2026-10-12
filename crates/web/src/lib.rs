@@ -2,6 +2,8 @@
 #![forbid(unsafe_code)]
 
 mod auth;
+mod author;
+mod author_pages;
 mod auth_cookies;
 mod pages;
 mod password_jobs;
