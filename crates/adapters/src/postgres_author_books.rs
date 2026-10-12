@@ -4,11 +4,7 @@ use bokarust_application::authoring::{AuthorError, NewBook};
 use sqlx::Row;
 
 impl PgAuthor {
-    pub async fn create_book(
-        &self,
-        user_id: i64,
-        input: &NewBook,
-    ) -> Result<i64, AuthorError> {
+    pub async fn create_book(&self, user_id: i64, input: &NewBook) -> Result<i64, AuthorError> {
         if user_id <= 0 {
             return Err(AuthorError::Forbidden);
         }
@@ -42,7 +38,8 @@ impl PgAuthor {
             if previous != digest {
                 return Err(AuthorError::Conflict);
             }
-            return row.try_get::<Option<i64>, _>("book_id")
+            return row
+                .try_get::<Option<i64>, _>("book_id")
                 .map_err(db)?
                 .ok_or(AuthorError::Unavailable);
         }
