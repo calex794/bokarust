@@ -122,7 +122,7 @@ pub fn save_chapter(input: SaveChapterRequest<'_>) -> Result<SaveChapter, Author
         || !valid_command_key(input.command_key)
         || match access {
             ChapterAccess::Free => input.price_amount != 0,
-            ChapterAccess::Paid => !(1..=10_000_000).contains(&input.price_amount),
+            ChapterAccess::Paid => input.price_amount <= 0,
         }
     {
         return Err(AuthorError::Invalid);
