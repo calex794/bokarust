@@ -1,0 +1,24 @@
+<section class="section auth-section"><div class="container author-width">
+  <p class="eyebrow">Редактор главы</p><h1><!--PAGE_HEADING--></h1>
+  <p class="page-description">Нажатие «Сохранить» сразу публикует новую версию обычной главы. Черновиков нет.</p>
+  <form class="auth-form author-form" method="post" action="<!--ACTION-->">
+    <input type="hidden" name="csrf_token" value="<!--CSRF-->">
+    <input type="hidden" name="command_key" value="<!--KEY-->">
+    <input type="hidden" name="expected_revision" value="<!--REVISION-->">
+    <label for="number">Номер главы</label>
+    <!--NUMBER_CONTROL-->
+    <label for="title">Название главы</label>
+    <input id="title" type="text" name="title" value="<!--TITLE-->" maxlength="200" required>
+    <label for="body">Текст главы (не больше 50 000 символов)</label>
+    <textarea id="body" name="body_markdown" rows="18" maxlength="50000" required><!--BODY--></textarea>
+    <label for="access">Доступ</label>
+    <select id="access" name="access_level">
+      <option value="free" <!--FREE_SELECTED-->>Бесплатная</option>
+      <option value="paid" <!--PAID_SELECTED-->>Платная (пока без покупки)</option>
+    </select>
+    <label for="price">Цена в копейках (0 для бесплатной)</label>
+    <input id="price" type="number" name="price_cents" value="<!--PRICE-->" min="0" max="10000000" required>
+    <button class="button" type="submit">Сохранить и опубликовать</button>
+  </form>
+  <p><a href="/me/books/<!--BOOK_ID-->">← Управление книгой</a></p>
+</div></section>
