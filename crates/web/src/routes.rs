@@ -1,4 +1,4 @@
-use crate::{auth::{self, AuthState}, pages};
+use crate::{auth, auth_state::AuthState, pages, state::AppState};
 use axum::{
     extract::{Query, State},
     http::StatusCode,
@@ -11,12 +11,6 @@ use bokarust_application::catalog::{
 };
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
-
-#[derive(Clone)]
-pub(crate) struct AppState {
-    catalog: Arc<dyn PublicBookRepository>,
-    pub(crate) auth: Option<AuthState>,
-}
 
 #[derive(Deserialize)]
 struct CatalogQuery {

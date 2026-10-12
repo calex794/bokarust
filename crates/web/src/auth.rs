@@ -1,8 +1,9 @@
 //! Native HTTP account flows. No browser-side JavaScript or in-memory sessions.
 use crate::{
-    auth_cookies::{self, CookiePolicy, SESSION_SECONDS},
+    auth_cookies::{self, SESSION_SECONDS},
+    auth_state::AuthState,
     pages,
-    routes::AppState,
+    state::AppState,
 };
 use axum::{
     extract::{Form, State},
@@ -13,89 +14,11 @@ use bokarust_adapters::{
     account_security::{
         generate_session_token, hash_password, session_token_digest, verify_password,
     },
-    postgres_accounts::PgAccounts,
 };
 use bokarust_application::auth::validate_registration;
 use bokarust_domain::accounts::normalize_email;
 use serde::Deserialize;
-use std::{
-    collections::HashMap,
-    num::NonZeroU32,
-    sync::{Arc, Mutex},
-    time::{Duration, Instant},
-};
-use tokio::sync::Semaphore;
-
-const LOGIN_ATTEMPTS_PER_WINDOW: u32 = 5;
-const LOGIN_WINDOW: Duration = Duration::from_secs(15 * 60);
-const MAX_LOGIN_KEYS: usize = 10_000;
-
-struct AttemptWindow {
-    count: u32,
-    until: Instant,
-}
-
-#[derive(Clone)]
-pub(crate) struct AuthState {
-    accounts: PgAccounts,
-    cookies: CookiePolicy,
-    attempts: Arc<Mutex<HashMap<[u8; 32], AttemptWindow>>>,
-    hash_slots: Arc<Semaphore>,
-}
-
-impl AuthState {
-    pub fn new(accounts: PgAccounts, secure_cookies: bool) -> Self {
-        Self {
-            accounts,
-            cookies: CookiePolicy { secure: secure_cookies },
-            attempts: Arc::new(Mutex::new(HashMap::new())),
-            hash_slots: Arc::new(Semaphore::new(4)),
-        }
-    }
-
-    // Local brute-force bound; deployment across multiple replicas requires a shared limiter.
-    fn allow_attempt(&self, email: &str) -> bool {
-        let key = session_token_digest(email);
-        let now = Instant::now();
-        let mut attempts = self.attempts.lock().unwrap_or_else(|p| p.into_inner());
-        attempts.retain(|_, item| item.until > now);
-        if !attempts.contains_key(&key) && attempts.len() >= MAX_LOGIN_KEYS {
-            return false;
-        }
-        let item = attempts.entry(key).or_insert(AttemptWindow {
-            count: 0,
-            until: now + LOGIN_WINDOW,
-        });
-        if item.count >= LOGIN_ATTEMPTS_PER_WINDOW {
-            return false;
-        }
-        item.count += 1;
-        true
-    }
-
-    fn forget_attempts(&self, email: &str) {
-        let mut attempts = self.attempts.lock().unwrap_or_else(|p| p.into_inner());
-        attempts.remove(&session_token_digest(email));
-    }
-
-    async fn password_job<T, F>(&self, job: F) -> Result<T, StatusCode>
-    where
-        T: Send + 'static,
-        F: FnOnce() -> T + Send + 'static,
-    {
-        let permit = self
-            .hash_slots
-            .clone()
-            .try_acquire_owned()
-            .map_err(|_| StatusCode::TOO_MANY_REQUESTS)?;
-        tokio::task::spawn_blocking(move || {
-            let _permit = permit;
-            job()
-        })
-        .await
-        .map_err(|_| StatusCode::SERVICE_UNAVAILABLE)
-    }
-}
+use std::num::NonZeroU32;
 
 #[derive(Deserialize)]
 pub(crate) struct Registration {
@@ -312,21 +235,4 @@ pub(crate) async fn post_logout(
     response.headers_mut().append(header::SET_COOKIE, auth.cookies.clear_session());
     response.headers_mut().append(header::SET_COOKIE, auth.cookies.clear_csrf());
     response
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn login_rate_limit_is_bounded_and_resets_after_success() {
-        let limiter = AuthState::new(PgAccounts::from_pool(sqlx::postgres::PgPoolOptions::new()
-            .connect_lazy("postgres://user:password@127.0.0.1:5432/not_used").unwrap()), true);
-        for _ in 0..LOGIN_ATTEMPTS_PER_WINDOW {
-            assert!(limiter.allow_attempt("alice@example.org"));
-        }
-        assert!(!limiter.allow_attempt("alice@example.org"));
-        limiter.forget_attempts("alice@example.org");
-        assert!(limiter.allow_attempt("alice@example.org"));
-    }
 }

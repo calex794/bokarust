@@ -119,7 +119,7 @@ async fn registration_session_logout_and_login_roundtrip() {
     assert_eq!(status, StatusCode::OK);
     assert!(body.contains("Alice&lt;script&gt;"));
     assert!(!body.contains("Alice<script>"));
-    assert!(body.contains(&email));
+    assert!(body.contains(&email.to_lowercase()));
     assert!(!body.contains(password));
     let profile_csrf = csrf(&body);
     let (status, _, _) = request(
