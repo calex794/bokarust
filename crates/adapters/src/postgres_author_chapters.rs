@@ -176,6 +176,19 @@ impl PgAuthor {
             &digest,
         )
         .await?;
+        // The database checks ownership on EACH write, not only when the form loads.
+        let allowed: Option<i64> = sqlx::query_scalar(
+            "SELECT id FROM books WHERE id = $1 AND owner_user_id = $2 \
+             AND NOT admin_hold AND NOT is_deleted AND visibility = 'public' FOR SHARE",
+        )
+        .bind(input.book_id)
+        .bind(user_id)
+        .fetch_optional(&mut *tx)
+        .await
+        .map_err(db)?;
+        if allowed.is_none() {
+            return Err(AuthorError::Forbidden);
+        }
         if !fresh {
             let row = sqlx::query(
                 "SELECT payload_hash, chapter_id, version_id, saved_revision \
@@ -198,19 +211,6 @@ impl PgAuthor {
                 revision: row.try_get::<Option<i64>, _>("saved_revision").map_err(db)?
                     .ok_or(AuthorError::Unavailable)?,
             });
-        }
-        // The database checks ownership on EACH write, not only when the form loads.
-        let allowed: Option<i64> = sqlx::query_scalar(
-            "SELECT id FROM books WHERE id = $1 AND owner_user_id = $2 \
-             AND NOT admin_hold AND NOT is_deleted AND visibility = 'public' FOR SHARE",
-        )
-        .bind(input.book_id)
-        .bind(user_id)
-        .fetch_optional(&mut *tx)
-        .await
-        .map_err(db)?;
-        if allowed.is_none() {
-            return Err(AuthorError::Forbidden);
         }
         let (chapter_id, version_id, revision) = if input.chapter_id.is_some() {
             existing_chapter(&mut tx, input).await?
