@@ -4,6 +4,7 @@
 use crate::{
     auth_cookies::{private_response, CookiePolicy, SESSION_AGE},
     pages,
+    auth_hashing::PasswordWork,
 };
 use axum::{
     extract::{ConnectInfo, DefaultBodyLimit, Form, State},
@@ -26,6 +27,7 @@ use std::{net::SocketAddr, num::NonZeroU32};
 struct AuthState {
     accounts: PgAccounts,
     cookies: CookiePolicy,
+    password_work: PasswordWork,
 }
 
 #[derive(Deserialize)]
@@ -52,6 +54,7 @@ pub(crate) fn router(accounts: PgAccounts, secure: bool, origin: String) -> Rout
     let state = AuthState {
         accounts,
         cookies: CookiePolicy { secure, origin },
+        password_work: PasswordWork::new(),
     };
     Router::new()
         .route("/register", get(show_registration).post(register))
@@ -137,9 +140,10 @@ async fn register(
 
     // Argon2 is deliberately moved off Tokio's request executor.
     let password = form.password;
-    let hashed = match tokio::task::spawn_blocking(move || hash_password(&password)).await {
+    let hashed = match state.password_work.run(move || hash_password(&password)).await {
         Ok(Ok(hash)) => hash,
-        _ => return deny(StatusCode::SERVICE_UNAVAILABLE),
+        Ok(Err(_)) => return deny(StatusCode::SERVICE_UNAVAILABLE),
+        Err(status) => return deny(status),
     };
     let token = generate_session_token();
     let digest = session_token_digest(&token);
@@ -188,7 +192,7 @@ async fn login(
     };
     let known_hash = stored.as_ref().map(|u| u.password_hash.clone());
     let password = form.password;
-    let verified = match tokio::task::spawn_blocking(move || match known_hash {
+    let verified = match state.password_work.run(move || match known_hash {
         Some(hash) => verify_password(&password, &hash),
         None => {
             // A missing account still performs costly work to limit timing leaks.
@@ -199,7 +203,7 @@ async fn login(
     .await
     {
         Ok(valid) => valid,
-        Err(_) => return deny(StatusCode::SERVICE_UNAVAILABLE),
+        Err(status) => return deny(status),
     };
     if !verified {
         return invalid_credentials();
