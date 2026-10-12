@@ -132,6 +132,23 @@ async fn integration_reading_deny_private_and_serve_published() {
     .await;
     let second = version(&pool, live, 2, "NEW_PUBLISHED_TEXT").await;
     publish(&pool, live, first).await;
+    // Database rejects edits to immutable historical versions.
+    assert!(sqlx::query("UPDATE chapter_versions SET body_markdown='tampered' WHERE id=$1")
+        .bind(first)
+        .execute(&pool)
+        .await
+        .is_err());
+    // Author and reader agree on at most 50,000 Unicode characters.
+    assert!(sqlx::query(
+        "INSERT INTO chapter_versions (chapter_id,version_no,body_markdown) VALUES ($1,$2,$3)"
+    )
+    .bind(live)
+    .bind(3_i32)
+    .bind("т".repeat(50_001))
+    .execute(&pool)
+    .await
+    .is_err());
+
     let draft = chapter(&pool, public_id, 2, "SECRET_DRAFT", "draft", "free").await;
     let paid = chapter(&pool, public_id, 3, "SECRET_PAID", "public", "paid").await;
     let held = chapter(&pool, public_id, 4, "SECRET_HOLD", "public", "free").await;
@@ -213,6 +230,18 @@ async fn integration_reading_deny_private_and_serve_published() {
     assert_eq!(status, StatusCode::NOT_FOUND);
     let (status, _) = get(&app, &format!("/reader/{}", u64::MAX)).await;
     assert_eq!(status, StatusCode::NOT_FOUND);
+
+    let response = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .uri(format!("/reader/{live}"))
+                .body(Body::empty())
+                .expect("cache policy request"),
+        )
+        .await
+        .expect("cache policy response");
+    assert_eq!(response.headers()["cache-control"], "no-store");
 
     let (status, reader) = get(&app, &format!("/reader/{live}")).await;
     assert_eq!(status, StatusCode::OK);
