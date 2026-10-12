@@ -12,7 +12,7 @@ pub(crate) struct PublicBookCard {
     pub language: String,
 }
 
-fn escape_html(value: &str) -> String {
+pub(crate) fn escape_html(value: &str) -> String {
     let mut escaped = String::with_capacity(value.len());
     for ch in value.chars() {
         match ch {
@@ -27,7 +27,7 @@ fn escape_html(value: &str) -> String {
     escaped
 }
 
-fn layout(title: &str, description: &str, content: &str) -> Html<String> {
+pub(crate) fn layout(title: &str, description: &str, content: &str) -> Html<String> {
     let shell = include_str!("../templates/layout.html");
     Html(
         shell
