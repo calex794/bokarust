@@ -184,15 +184,15 @@ mod tests {
     fn chapter_is_published_on_save_with_a_fixed_maximum_length() {
         fn input(body: &str) -> SaveChapterRequest<'_> {
             SaveChapterRequest {
-            book_id: 1,
-            chapter_id: None,
-            number: 1,
-            expected_revision: 0,
-            title: "Глава",
-            body,
-            access: "free",
-            price_cents: 0,
-            command_key: KEY,
+                book_id: 1,
+                chapter_id: None,
+                number: 1,
+                expected_revision: 0,
+                title: "Глава",
+                body,
+                access: "free",
+                price_cents: 0,
+                command_key: KEY,
             }
         }
         assert_eq!(
