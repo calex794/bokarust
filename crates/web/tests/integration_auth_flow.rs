@@ -124,7 +124,8 @@ async fn integration_auth_registration_to_logout_and_login() {
         false,
         "http://localhost:3000".to_owned(),
     );
-    let email = format!("ci-auth-{}@example.invalid", generate_session_token()).to_ascii_lowercase();
+    let suffix = generate_session_token().to_ascii_lowercase();
+    let email = format!("ci-auth-{suffix}@example.invalid");
     let password = "safe-password-12345";
     let display_name = "<script>alert(1)</script>";
 
