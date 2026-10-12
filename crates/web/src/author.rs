@@ -214,7 +214,7 @@ async fn edit_chapter_form(
         Err(response) => return response,
     };
     match state.author.owned_chapter(user, book_id, chapter_id).await {
-        Ok(Some(chapter)) => page_with_csrf(&state, |csrf, key| {
+        Ok(Some(chapter)) => page_with_csrf(&state, &headers, |csrf, key| {
             author_pages::chapter_form(book_id, Some(chapter_id), Some(&chapter), csrf, key)
         }),
         Ok(None) => fail(StatusCode::NOT_FOUND),
