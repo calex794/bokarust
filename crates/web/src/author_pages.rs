@@ -1,7 +1,9 @@
 //! Small server-rendered author pages; every dynamic value is HTML-escaped.
 use crate::pages::{escape_html, layout};
 use axum::response::Html;
-use bokarust_application::authoring::{ChapterAccess, OwnedBook, OwnedChapter, OwnedChapterSummary};
+use bokarust_application::authoring::{
+    ChapterAccess, OwnedBook, OwnedChapter, OwnedChapterSummary,
+};
 use std::fmt::Write;
 
 pub(crate) fn books_index(books: &[OwnedBook]) -> Html<String> {
@@ -41,10 +43,7 @@ pub(crate) fn manage_book(book: &OwnedBook, chapters: &[OwnedChapterSummary]) ->
     let mut entries = String::new();
     for chapter in chapters {
         let public_link = match chapter.access {
-            ChapterAccess::Free => format!(
-                " <a href=\"/reader/{}\">Читать</a>",
-                chapter.id
-            ),
+            ChapterAccess::Free => format!(" <a href=\"/reader/{}\">Читать</a>", chapter.id),
             ChapterAccess::Paid => " (платная, покупка пока недоступна)".to_owned(),
         };
         write!(
@@ -75,7 +74,11 @@ pub(crate) fn chapter_form(
     csrf: &str,
     key: &str,
 ) -> Html<String> {
-    let heading = if chapter_id.is_some() { "Изменить главу" } else { "Новая глава" };
+    let heading = if chapter_id.is_some() {
+        "Изменить главу"
+    } else {
+        "Новая глава"
+    };
     let action = match chapter_id {
         Some(id) => format!("/books/{book_id}/chapters/{id}"),
         None => format!("/books/{book_id}/chapters"),
@@ -99,8 +102,22 @@ pub(crate) fn chapter_form(
         .replace("<!--NUMBER_CONTROL-->", &number_control)
         .replace("<!--TITLE-->", &escape_html(title))
         .replace("<!--BODY-->", &escape_html(body))
-        .replace("<!--FREE_SELECTED-->", if access == ChapterAccess::Free { "selected" } else { "" })
-        .replace("<!--PAID_SELECTED-->", if access == ChapterAccess::Paid { "selected" } else { "" })
+        .replace(
+            "<!--FREE_SELECTED-->",
+            if access == ChapterAccess::Free {
+                "selected"
+            } else {
+                ""
+            },
+        )
+        .replace(
+            "<!--PAID_SELECTED-->",
+            if access == ChapterAccess::Paid {
+                "selected"
+            } else {
+                ""
+            },
+        )
         .replace("<!--PRICE-->", &price.to_string())
         .replace("<!--BOOK_ID-->", &book_id.to_string());
     layout(heading, "Сохранение и немедленная публикация главы.", &html)
@@ -111,13 +128,20 @@ mod tests {
     use super::*;
     #[test]
     fn author_data_is_never_raw_html() {
-        let book = OwnedBook { id: 3, title: "<script>alert(1)</script>".to_owned() };
+        let book = OwnedBook {
+            id: 3,
+            title: "<script>alert(1)</script>".to_owned(),
+        };
         let html = manage_book(&book, &[]).0;
         assert!(html.contains("&lt;script&gt;"));
         assert!(!html.contains("<script>"));
         let chapter = OwnedChapter {
-            number: 1, title: "<x>".into(), body: "</textarea><script>boom</script>".into(),
-            access: ChapterAccess::Free, price_cents: 0, revision: 1,
+            number: 1,
+            title: "<x>".into(),
+            body: "</textarea><script>boom</script>".into(),
+            access: ChapterAccess::Free,
+            price_cents: 0,
+            revision: 1,
         };
         let html = chapter_form(3, Some(4), Some(&chapter), "safe", "safe").0;
         assert!(html.contains("&lt;/textarea&gt;"));
