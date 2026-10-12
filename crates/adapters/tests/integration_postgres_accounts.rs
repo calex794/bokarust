@@ -2,8 +2,7 @@
 
 use bokarust_adapters::{
     account_security::{
-        generate_session_token, hash_password, session_token_digest,
-        verify_password,
+        generate_session_token, hash_password, session_token_digest, verify_password,
     },
     postgres_accounts::PgAccounts,
 };
@@ -41,10 +40,11 @@ async fn integration_postgres_users_and_revocable_sessions() {
     assert!(!verify_password("Wrong", &existing.password_hash));
 
     // PostgreSQL, rather than a read-before-write check, arbitrates races.
-    let duplicate = accounts
-        .insert_user(&email, "Другой", &password_hash)
-        .await;
-    assert!(duplicate.is_err(), "duplicate normalized email must be rejected");
+    let duplicate = accounts.insert_user(&email, "Другой", &password_hash).await;
+    assert!(
+        duplicate.is_err(),
+        "duplicate normalized email must be rejected"
+    );
 
     let digest = session_token_digest(&secret);
     let ttl = NonZeroU32::new(300).expect("nonzero");
@@ -52,7 +52,10 @@ async fn integration_postgres_users_and_revocable_sessions() {
         .insert_session(user_id, &digest, ttl)
         .await
         .expect("store only token digest");
-    assert_eq!(accounts.active_session_user(&digest).await.unwrap(), Some(user_id));
+    assert_eq!(
+        accounts.active_session_user(&digest).await.unwrap(),
+        Some(user_id)
+    );
     assert_eq!(
         accounts
             .active_session_user(&session_token_digest("different"))
@@ -61,8 +64,14 @@ async fn integration_postgres_users_and_revocable_sessions() {
         None
     );
 
-    assert!(accounts.revoke_session(&digest).await.expect("revoke session"));
-    assert!(!accounts.revoke_session(&digest).await.expect("idempotent revoke"));
+    assert!(accounts
+        .revoke_session(&digest)
+        .await
+        .expect("revoke session"));
+    assert!(!accounts
+        .revoke_session(&digest)
+        .await
+        .expect("idempotent revoke"));
     assert_eq!(accounts.active_session_user(&digest).await.unwrap(), None);
 
     let next_token = generate_session_token();
@@ -79,7 +88,10 @@ async fn integration_postgres_users_and_revocable_sessions() {
     .execute(accounts.pool())
     .await
     .expect("expire session");
-    assert_eq!(accounts.active_session_user(&next_digest).await.unwrap(), None);
+    assert_eq!(
+        accounts.active_session_user(&next_digest).await.unwrap(),
+        None
+    );
 
     // A test-only cleanup, not a production deletion API.
     sqlx::query("DELETE FROM users WHERE id = $1")
