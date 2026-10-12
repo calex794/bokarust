@@ -99,11 +99,13 @@ async fn user_id(state: &AuthorState, headers: &HeaderMap) -> Result<i64, Status
         .ok_or(StatusCode::UNAUTHORIZED)
 }
 
-async fn page_user(state: &AuthorState, headers: &HeaderMap) -> Result<i64, Response> {
+async fn page_user(state: &AuthorState, headers: &HeaderMap) -> Result<i64, Box<Response>> {
     match user_id(state, headers).await {
         Ok(id) => Ok(id),
-        Err(StatusCode::UNAUTHORIZED) => Err(private_response(Redirect::to("/login"), &[])),
-        Err(status) => Err(fail(status)),
+        Err(StatusCode::UNAUTHORIZED) => {
+            Err(Box::new(private_response(Redirect::to("/login"), &[])))
+        }
+        Err(status) => Err(Box::new(fail(status))),
     }
 }
 
@@ -124,7 +126,7 @@ fn page_with_csrf(
 async fn my_books(State(state): State<AuthorState>, headers: HeaderMap) -> Response {
     let user = match page_user(&state, &headers).await {
         Ok(user) => user,
-        Err(response) => return response,
+        Err(response) => return *response,
     };
     match state.author.my_books(user).await {
         Ok(books) => private_response(author_pages::books_index(&books), &[]),
@@ -139,7 +141,7 @@ async fn manage_book(
 ) -> Response {
     let user = match page_user(&state, &headers).await {
         Ok(user) => user,
-        Err(response) => return response,
+        Err(response) => return *response,
     };
     let book = match state.author.owned_book(user, book_id).await {
         Ok(Some(book)) => book,
@@ -154,7 +156,7 @@ async fn manage_book(
 
 async fn book_form(State(state): State<AuthorState>, headers: HeaderMap) -> Response {
     if let Err(response) = page_user(&state, &headers).await {
-        return response;
+        return *response;
     }
     page_with_csrf(&state, &headers, author_pages::new_book)
 }
@@ -193,7 +195,7 @@ async fn new_chapter_form(
 ) -> Response {
     let user = match page_user(&state, &headers).await {
         Ok(user) => user,
-        Err(response) => return response,
+        Err(response) => return *response,
     };
     match state.author.owned_book(user, book_id).await {
         Ok(Some(_)) => page_with_csrf(&state, &headers, |csrf, key| {
@@ -211,7 +213,7 @@ async fn edit_chapter_form(
 ) -> Response {
     let user = match page_user(&state, &headers).await {
         Ok(user) => user,
-        Err(response) => return response,
+        Err(response) => return *response,
     };
     match state.author.owned_chapter(user, book_id, chapter_id).await {
         Ok(Some(chapter)) => page_with_csrf(&state, &headers, |csrf, key| {
