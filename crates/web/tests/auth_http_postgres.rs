@@ -62,7 +62,9 @@ async fn request(
 #[ignore = "requires disposable PostgreSQL 18 via TEST_DATABASE_URL=bokarust_auth_test"]
 async fn registration_session_logout_and_login_roundtrip() {
     let url = std::env::var("TEST_DATABASE_URL").expect("database URL required");
-    let pool = PgPool::connect(&url).await.expect("connect test PostgreSQL");
+    let pool = PgPool::connect(&url)
+        .await
+        .expect("connect test PostgreSQL");
     let name: String = sqlx::query_scalar("SELECT current_database()")
         .fetch_one(&pool)
         .await
@@ -70,17 +72,12 @@ async fn registration_session_logout_and_login_roundtrip() {
     assert_eq!(name, "bokarust_auth_test", "refuse non-test database");
     MIGRATOR.run(&pool).await.expect("migrations");
     let accounts = PgAccounts::from_pool(pool.clone());
-    let app = router_with_auth(
-        Arc::new(InMemoryCatalog::default()),
-        accounts.clone(),
-        true,
-    );
+    let app = router_with_auth(Arc::new(InMemoryCatalog::default()), accounts.clone(), true);
     let email = format!("bkr95-{}@example.invalid", generate_session_token());
     let password = "A very long test password #2026!";
     let (status, _, _) = request(app.clone(), Method::GET, "/me", None, "").await;
     assert_eq!(status, StatusCode::SEE_OTHER, "guest cannot view /me");
-    let (status, headers, form) =
-        request(app.clone(), Method::GET, "/register", None, "").await;
+    let (status, headers, form) = request(app.clone(), Method::GET, "/register", None, "").await;
     assert_eq!(status, StatusCode::OK);
     assert!(form.contains("action=\"/register\""));
     assert!(!form.contains("disabled"));
@@ -90,8 +87,7 @@ async fn registration_session_logout_and_login_roundtrip() {
     let payload = format!(
         "name=Alice%3Cscript%3E&email={email}&password=A%20very%20long%20test%20password%20%232026%21&csrf={csrf_token}"
     );
-    let (status, _, _) =
-        request(app.clone(), Method::POST, "/register", None, &payload).await;
+    let (status, _, _) = request(app.clone(), Method::POST, "/register", None, &payload).await;
     assert_eq!(status, StatusCode::FORBIDDEN, "missing CSRF cookie");
     let (status, _, _) = request(
         app.clone(),
@@ -102,8 +98,14 @@ async fn registration_session_logout_and_login_roundtrip() {
     )
     .await;
     assert_eq!(status, StatusCode::FORBIDDEN, "invalid form token");
-    let (status, headers, _) =
-        request(app.clone(), Method::POST, "/register", Some(&csrf_cookie), &payload).await;
+    let (status, headers, _) = request(
+        app.clone(),
+        Method::POST,
+        "/register",
+        Some(&csrf_cookie),
+        &payload,
+    )
+    .await;
     assert_eq!(status, StatusCode::SEE_OTHER);
     assert_eq!(headers[header::LOCATION], "/me");
     let sid = cookie(&headers, "__Host-bokarust_sid=");
@@ -114,8 +116,7 @@ async fn registration_session_logout_and_login_roundtrip() {
         }));
     }
     let both = format!("{csrf_cookie}; {sid}");
-    let (status, _, body) =
-        request(app.clone(), Method::GET, "/me", Some(&both), "").await;
+    let (status, _, body) = request(app.clone(), Method::GET, "/me", Some(&both), "").await;
     assert_eq!(status, StatusCode::OK);
     assert!(body.contains("Alice&lt;script&gt;"));
     assert!(!body.contains("Alice<script>"));
@@ -128,7 +129,8 @@ async fn registration_session_logout_and_login_roundtrip() {
         "/logout",
         Some(&sid),
         &format!("csrf={profile_csrf}"),
-    ).await;
+    )
+    .await;
     assert_eq!(status, StatusCode::FORBIDDEN, "logout requires CSRF");
     let (status, headers, _) = request(
         app.clone(),
@@ -136,47 +138,62 @@ async fn registration_session_logout_and_login_roundtrip() {
         "/logout",
         Some(&both),
         &format!("csrf={profile_csrf}"),
-    ).await;
+    )
+    .await;
     assert_eq!(status, StatusCode::SEE_OTHER);
     assert_eq!(headers[header::LOCATION], "/login");
     assert!(headers.get_all(header::SET_COOKIE).iter().any(|cookie| {
-        cookie.to_str().unwrap().starts_with("__Host-bokarust_sid=;")
+        cookie
+            .to_str()
+            .unwrap()
+            .starts_with("__Host-bokarust_sid=;")
             && cookie.to_str().unwrap().contains("Max-Age=0")
     }));
     let digest = session_token_digest(sid.split('=').nth(1).unwrap());
     assert_eq!(accounts.active_session_user(&digest).await.unwrap(), None);
-    let (status, _, _) =
-        request(app.clone(), Method::GET, "/me", Some(&sid), "").await;
+    let (status, _, _) = request(app.clone(), Method::GET, "/me", Some(&sid), "").await;
     assert_eq!(status, StatusCode::SEE_OTHER);
 
-    let (status, headers, login) =
-        request(app.clone(), Method::GET, "/login", None, "").await;
+    let (status, headers, login) = request(app.clone(), Method::GET, "/login", None, "").await;
     assert_eq!(status, StatusCode::OK);
     let login_cookie = cookie(&headers, "__Host-bokarust_csrf=");
     let login_csrf = csrf(&login);
     let bad = format!("email={email}&password=wrong&csrf={login_csrf}");
-    let (status, _, _) =
-        request(app.clone(), Method::POST, "/login", Some(&login_cookie), &bad).await;
+    let (status, _, _) = request(
+        app.clone(),
+        Method::POST,
+        "/login",
+        Some(&login_cookie),
+        &bad,
+    )
+    .await;
     assert_eq!(status, StatusCode::UNAUTHORIZED);
     let good = format!(
         "email={email}&password=A%20very%20long%20test%20password%20%232026%21&csrf={login_csrf}"
     );
     let (status, headers, _) = request(
-        app.clone(), Method::POST, "/login?next=https://evil.invalid",
-        Some(&login_cookie), &good
-    ).await;
+        app.clone(),
+        Method::POST,
+        "/login?next=https://evil.invalid",
+        Some(&login_cookie),
+        &good,
+    )
+    .await;
     assert_eq!(status, StatusCode::SEE_OTHER);
     assert_eq!(headers[header::LOCATION], "/me", "no open redirect");
     let sid2 = cookie(&headers, "__Host-bokarust_sid=");
-    let (status, _, _) =
-        request(app.clone(), Method::GET, "/me", Some(&sid2), "").await;
+    let (status, _, _) = request(app.clone(), Method::GET, "/me", Some(&sid2), "").await;
     assert_eq!(status, StatusCode::OK);
-    let (status, _, _) =
-        request(app.clone(), Method::GET, "/logout", Some(&sid2), "").await;
+    let (status, _, _) = request(app.clone(), Method::GET, "/logout", Some(&sid2), "").await;
     assert_eq!(status, StatusCode::METHOD_NOT_ALLOWED);
     let (status, _, _) = request(
-        app.clone(), Method::POST, "/register", Some(&csrf_cookie), &payload
-    ).await;
+        app.clone(),
+        Method::POST,
+        "/register",
+        Some(&csrf_cookie),
+        &payload,
+    )
+    .await;
     assert_eq!(status, StatusCode::CONFLICT);
 
     sqlx::query("DELETE FROM users WHERE email_normalized = $1")

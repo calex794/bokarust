@@ -1,10 +1,7 @@
 //! Per-process authentication runtime: database adapter, bounded Argon2 workers and login attempts.
 use crate::auth_cookies::CookiePolicy;
 use axum::http::StatusCode;
-use bokarust_adapters::{
-    account_security::session_token_digest,
-    postgres_accounts::PgAccounts,
-};
+use bokarust_adapters::{account_security::session_token_digest, postgres_accounts::PgAccounts};
 use std::{
     collections::HashMap,
     sync::{Arc, Mutex},
@@ -33,7 +30,9 @@ impl AuthState {
     pub(crate) fn new(accounts: PgAccounts, secure_cookies: bool) -> Self {
         Self {
             accounts,
-            cookies: CookiePolicy { secure: secure_cookies },
+            cookies: CookiePolicy {
+                secure: secure_cookies,
+            },
             attempts: Arc::new(Mutex::new(HashMap::new())),
             hash_slots: Arc::new(Semaphore::new(4)),
         }
@@ -89,8 +88,14 @@ mod tests {
 
     #[test]
     fn login_rate_limit_is_bounded_and_resets_after_success() {
-        let limiter = AuthState::new(PgAccounts::from_pool(sqlx::postgres::PgPoolOptions::new()
-            .connect_lazy("postgres://user:password@127.0.0.1:5432/not_used").unwrap()), true);
+        let limiter = AuthState::new(
+            PgAccounts::from_pool(
+                sqlx::postgres::PgPoolOptions::new()
+                    .connect_lazy("postgres://user:password@127.0.0.1:5432/not_used")
+                    .unwrap(),
+            ),
+            true,
+        );
         for _ in 0..LOGIN_ATTEMPTS_PER_WINDOW {
             assert!(limiter.allow_attempt("alice@example.org"));
         }

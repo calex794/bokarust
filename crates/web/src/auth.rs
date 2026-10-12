@@ -10,10 +10,8 @@ use axum::{
     http::{header, HeaderMap, StatusCode},
     response::{IntoResponse, Response},
 };
-use bokarust_adapters::{
-    account_security::{
-        generate_session_token, hash_password, session_token_digest, verify_password,
-    },
+use bokarust_adapters::account_security::{
+    generate_session_token, hash_password, session_token_digest, verify_password,
 };
 use bokarust_application::auth::validate_registration;
 use bokarust_domain::accounts::normalize_email;
@@ -86,7 +84,10 @@ pub(crate) async fn post_register(
             );
         }
     };
-    let password_hash = match auth.password_job(move || hash_password(&form.password)).await {
+    let password_hash = match auth
+        .password_job(move || hash_password(&form.password))
+        .await
+    {
         Ok(Ok(hash)) => hash,
         Ok(Err(_)) | Err(StatusCode::SERVICE_UNAVAILABLE) => {
             return auth_cookies::error(StatusCode::SERVICE_UNAVAILABLE);
@@ -108,7 +109,13 @@ pub(crate) async fn post_register(
         .await
     {
         Ok(_) => signed_in(auth, &token),
-        Err(error) if error.as_database_error().and_then(|db| db.code()).as_deref() == Some("23505") => {
+        Err(error)
+            if error
+                .as_database_error()
+                .and_then(|db| db.code())
+                .as_deref()
+                == Some("23505") =>
+        {
             form_error(
                 StatusCode::CONFLICT,
                 pages::register_enabled(&form.csrf, Some("Адрес почты уже зарегистрирован")),
@@ -181,11 +188,21 @@ pub(crate) async fn post_login(
     let token = generate_session_token();
     let digest = session_token_digest(&token);
     let ttl = NonZeroU32::new(SESSION_SECONDS).expect("session lifetime is nonzero");
-    if auth.accounts.insert_session(user_id, &digest, ttl).await.is_err() {
+    if auth
+        .accounts
+        .insert_session(user_id, &digest, ttl)
+        .await
+        .is_err()
+    {
         return auth_cookies::error(StatusCode::SERVICE_UNAVAILABLE);
     }
     if let Some(old_token) = auth.cookies.session(&headers) {
-        if auth.accounts.revoke_session(&session_token_digest(&old_token)).await.is_err() {
+        if auth
+            .accounts
+            .revoke_session(&session_token_digest(&old_token))
+            .await
+            .is_err()
+        {
             // Newly created session must not be leaked if revocation fails.
             let _ = auth.accounts.revoke_session(&digest).await;
             return auth_cookies::error(StatusCode::SERVICE_UNAVAILABLE);
@@ -202,7 +219,11 @@ pub(crate) async fn get_me(State(state): State<AppState>, headers: HeaderMap) ->
     let Some(secret) = auth.cookies.session(&headers) else {
         return auth_cookies::redirect("/login");
     };
-    let profile = match auth.accounts.active_profile(&session_token_digest(&secret)).await {
+    let profile = match auth
+        .accounts
+        .active_profile(&session_token_digest(&secret))
+        .await
+    {
         Ok(Some(profile)) => profile,
         Ok(None) => return auth_cookies::redirect("/login"),
         Err(_) => return auth_cookies::error(StatusCode::SERVICE_UNAVAILABLE),
@@ -227,12 +248,21 @@ pub(crate) async fn post_logout(
         return auth_cookies::error(StatusCode::FORBIDDEN);
     }
     if let Some(secret) = auth.cookies.session(&headers) {
-        if auth.accounts.revoke_session(&session_token_digest(&secret)).await.is_err() {
+        if auth
+            .accounts
+            .revoke_session(&session_token_digest(&secret))
+            .await
+            .is_err()
+        {
             return auth_cookies::error(StatusCode::SERVICE_UNAVAILABLE);
         }
     }
     let mut response = auth_cookies::redirect("/login");
-    response.headers_mut().append(header::SET_COOKIE, auth.cookies.clear_session());
-    response.headers_mut().append(header::SET_COOKIE, auth.cookies.clear_csrf());
+    response
+        .headers_mut()
+        .append(header::SET_COOKIE, auth.cookies.clear_session());
+    response
+        .headers_mut()
+        .append(header::SET_COOKIE, auth.cookies.clear_csrf());
     response
 }

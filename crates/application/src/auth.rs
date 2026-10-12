@@ -20,10 +20,7 @@ pub fn validate_registration(
         return Err("Имя должно содержать от 1 до 80 символов");
     }
     let length = password.chars().count();
-    if !(12..=128).contains(&length)
-        || password.len() > 1024
-        || password.trim().is_empty()
-    {
+    if !(12..=128).contains(&length) || password.len() > 1024 || password.trim().is_empty() {
         return Err("Пароль должен содержать от 12 до 128 символов");
     }
     Ok(NewAccount {

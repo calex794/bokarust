@@ -90,7 +90,10 @@ fn build_router(catalog: Arc<dyn PublicBookRepository>, auth: Option<AuthState>)
         .route("/api/v1/books", get(list_public_books));
     if auth.is_some() {
         app = app
-            .route("/register", get(auth::get_register).post(auth::post_register))
+            .route(
+                "/register",
+                get(auth::get_register).post(auth::post_register),
+            )
             .route("/login", get(auth::get_login).post(auth::post_login))
             .route("/me", get(auth::get_me))
             .route("/logout", axum::routing::post(auth::post_logout))

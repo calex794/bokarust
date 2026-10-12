@@ -94,23 +94,42 @@ pub(crate) async fn register() -> impl IntoResponse {
     )
 }
 
-
 /// Authenticated flows render only escaped display values and server-made CSRF secrets.
 pub(crate) fn register_enabled(csrf: &str, error: Option<&str>) -> Html<String> {
     let content = include_str!("../templates/register-enabled.html")
         .replace("<!--CSRF_TOKEN-->", &escape_html(csrf))
-        .replace("<!--AUTH_ERROR-->", &error.map(|s| format!(
-            "<p class=\"form-error\" role=\"alert\">{}</p>", escape_html(s)
-        )).unwrap_or_default());
-    layout("Регистрация", "Создание учётной записи Пандаолейт.", &content)
+        .replace(
+            "<!--AUTH_ERROR-->",
+            &error
+                .map(|s| {
+                    format!(
+                        "<p class=\"form-error\" role=\"alert\">{}</p>",
+                        escape_html(s)
+                    )
+                })
+                .unwrap_or_default(),
+        );
+    layout(
+        "Регистрация",
+        "Создание учётной записи Пандаолейт.",
+        &content,
+    )
 }
 
 pub(crate) fn login_enabled(csrf: &str, error: Option<&str>) -> Html<String> {
     let content = include_str!("../templates/login-enabled.html")
         .replace("<!--CSRF_TOKEN-->", &escape_html(csrf))
-        .replace("<!--AUTH_ERROR-->", &error.map(|s| format!(
-            "<p class=\"form-error\" role=\"alert\">{}</p>", escape_html(s)
-        )).unwrap_or_default());
+        .replace(
+            "<!--AUTH_ERROR-->",
+            &error
+                .map(|s| {
+                    format!(
+                        "<p class=\"form-error\" role=\"alert\">{}</p>",
+                        escape_html(s)
+                    )
+                })
+                .unwrap_or_default(),
+        );
     layout("Вход", "Вход в учётную запись Пандаолейт.", &content)
 }
 
@@ -119,7 +138,11 @@ pub(crate) fn account(name: &str, email: &str, csrf: &str) -> Html<String> {
         .replace("<!--DISPLAY_NAME-->", &escape_html(name))
         .replace("<!--EMAIL-->", &escape_html(email))
         .replace("<!--CSRF_TOKEN-->", &escape_html(csrf));
-    layout("Личный кабинет", "Личный кабинет читателя Пандаолейт.", &content)
+    layout(
+        "Личный кабинет",
+        "Личный кабинет читателя Пандаолейт.",
+        &content,
+    )
 }
 
 pub(crate) async fn stylesheet() -> impl IntoResponse {

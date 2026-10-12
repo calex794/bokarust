@@ -15,16 +15,27 @@ pub struct CookiePolicy {
 
 impl CookiePolicy {
     fn session_name(self) -> &'static str {
-        if self.secure { "__Host-bokarust_sid" } else { "bokarust_dev_sid" }
+        if self.secure {
+            "__Host-bokarust_sid"
+        } else {
+            "bokarust_dev_sid"
+        }
     }
 
     fn csrf_name(self) -> &'static str {
-        if self.secure { "__Host-bokarust_csrf" } else { "bokarust_dev_csrf" }
+        if self.secure {
+            "__Host-bokarust_csrf"
+        } else {
+            "bokarust_dev_csrf"
+        }
     }
 
     fn attributes(self) -> &'static str {
-        if self.secure { "Path=/; Secure; HttpOnly; SameSite=Strict" }
-        else { "Path=/; HttpOnly; SameSite=Strict" }
+        if self.secure {
+            "Path=/; Secure; HttpOnly; SameSite=Strict"
+        } else {
+            "Path=/; HttpOnly; SameSite=Strict"
+        }
     }
 
     pub fn session(self, headers: &HeaderMap) -> Option<String> {
@@ -39,7 +50,8 @@ impl CookiePolicy {
         let secret = self.csrf(headers).unwrap_or_else(generate_session_token);
         let set_cookie = HeaderValue::from_str(&format!(
             "{}={secret}; {}; Max-Age=3600",
-            self.csrf_name(), self.attributes()
+            self.csrf_name(),
+            self.attributes()
         ))
         .expect("generated token is safe for HTTP headers");
         (secret, set_cookie)
@@ -49,15 +61,15 @@ impl CookiePolicy {
         let Some(cookie) = self.csrf(headers) else {
             return false;
         };
-        valid_secret(supplied)
-            && bool::from(cookie.as_bytes().ct_eq(supplied.as_bytes()))
+        valid_secret(supplied) && bool::from(cookie.as_bytes().ct_eq(supplied.as_bytes()))
     }
 
     pub fn set_session(self, token: &str) -> HeaderValue {
         assert!(valid_secret(token));
         HeaderValue::from_str(&format!(
             "{}={token}; {}; Max-Age={SESSION_SECONDS}",
-            self.session_name(), self.attributes()
+            self.session_name(),
+            self.attributes()
         ))
         .expect("generated token is safe for HTTP headers")
     }
@@ -65,7 +77,8 @@ impl CookiePolicy {
     pub fn clear_session(self) -> HeaderValue {
         HeaderValue::from_str(&format!(
             "{}=; {}; Max-Age=0",
-            self.session_name(), self.attributes()
+            self.session_name(),
+            self.attributes()
         ))
         .expect("constant cookie header")
     }
@@ -73,7 +86,8 @@ impl CookiePolicy {
     pub fn clear_csrf(self) -> HeaderValue {
         HeaderValue::from_str(&format!(
             "{}=; {}; Max-Age=0",
-            self.csrf_name(), self.attributes()
+            self.csrf_name(),
+            self.attributes()
         ))
         .expect("constant cookie header")
     }
@@ -81,7 +95,9 @@ impl CookiePolicy {
 
 fn valid_secret(value: &str) -> bool {
     value.len() == 43
-        && value.bytes().all(|byte| byte.is_ascii_alphanumeric() || byte == b'-' || byte == b'_')
+        && value
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || byte == b'-' || byte == b'_')
 }
 
 fn cookie(headers: &HeaderMap, wanted: &str) -> Option<String> {
@@ -107,7 +123,10 @@ fn cookie(headers: &HeaderMap, wanted: &str) -> Option<String> {
 pub fn protect(mut response: Response) -> Response {
     let headers = response.headers_mut();
     headers.insert(header::CACHE_CONTROL, HeaderValue::from_static("no-store"));
-    headers.insert(header::X_CONTENT_TYPE_OPTIONS, HeaderValue::from_static("nosniff"));
+    headers.insert(
+        header::X_CONTENT_TYPE_OPTIONS,
+        HeaderValue::from_static("nosniff"),
+    );
     headers.insert("referrer-policy", HeaderValue::from_static("no-referrer"));
     headers.insert("x-frame-options", HeaderValue::from_static("DENY"));
     headers.insert(
@@ -141,10 +160,16 @@ mod tests {
         assert!(set.starts_with("__Host-bokarust_csrf="));
         assert!(set.contains("Secure; HttpOnly; SameSite=Strict"));
         let mut with_cookie = HeaderMap::new();
-        with_cookie.insert(header::COOKIE, format!("__Host-bokarust_csrf={token}").parse().unwrap());
+        with_cookie.insert(
+            header::COOKIE,
+            format!("__Host-bokarust_csrf={token}").parse().unwrap(),
+        );
         assert!(policy.verify_csrf(&with_cookie, &token));
         assert!(!policy.verify_csrf(&with_cookie, &"x".repeat(43)));
-        with_cookie.append(header::COOKIE, format!("__Host-bokarust_csrf={token}").parse().unwrap());
+        with_cookie.append(
+            header::COOKIE,
+            format!("__Host-bokarust_csrf={token}").parse().unwrap(),
+        );
         assert!(!policy.verify_csrf(&with_cookie, &token));
     }
 
@@ -152,6 +177,10 @@ mod tests {
     fn dev_cookie_never_misuses_host_prefix() {
         let policy = CookiePolicy { secure: false };
         let (token, _) = policy.csrf_for_page(&HeaderMap::new());
-        assert!(policy.set_session(&token).to_str().unwrap().starts_with("bokarust_dev_sid="));
+        assert!(policy
+            .set_session(&token)
+            .to_str()
+            .unwrap()
+            .starts_with("bokarust_dev_sid="));
     }
 }
