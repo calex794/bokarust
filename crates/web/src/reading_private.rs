@@ -179,15 +179,16 @@ async fn persist_place(
     let user = user_id(state, headers)
         .await
         .map_err(|status| Box::new(deny(status)))?;
-    let chapter_key = u64::try_from(chapter_id).map_err(|_| Box::new(deny(StatusCode::NOT_FOUND)))?;
+    let chapter_key =
+        u64::try_from(chapter_id).map_err(|_| Box::new(deny(StatusCode::NOT_FOUND)))?;
     let chapter = state
         .reader
         .public_chapter(chapter_key)
         .await
         .map_err(|_| Box::new(deny(StatusCode::SERVICE_UNAVAILABLE)))?
         .ok_or_else(|| Box::new(deny(StatusCode::NOT_FOUND)))?;
-    let version_id =
-        i64::try_from(chapter.version_id).map_err(|_| Box::new(deny(StatusCode::SERVICE_UNAVAILABLE)))?;
+    let version_id = i64::try_from(chapter.version_id)
+        .map_err(|_| Box::new(deny(StatusCode::SERVICE_UNAVAILABLE)))?;
     if version_id != form.version_id {
         return Err(Box::new(deny(StatusCode::CONFLICT)));
     }
