@@ -5,10 +5,10 @@ CREATE INDEX books_owner_idx ON books(owner_user_id, id)
 
 ALTER TABLE chapters
     ADD COLUMN edit_revision BIGINT NOT NULL DEFAULT 0 CHECK (edit_revision >= 0),
-    ADD COLUMN price_cents BIGINT NOT NULL DEFAULT 0 CHECK (price_cents >= 0),
+    ADD COLUMN price_amount BIGINT NOT NULL DEFAULT 0 CHECK (price_amount >= 0),
     ADD CONSTRAINT chapters_price_matches_access CHECK (
-        (access_level = 'free' AND price_cents = 0)
-        OR (access_level = 'paid' AND price_cents > 0)
+        (access_level = 'free' AND price_amount = 0)
+        OR (access_level = 'paid' AND price_amount > 0)
     ) NOT VALID;
 
 -- Existing imported paid chapters may not have prices. The NOT VALID constraint
