@@ -58,7 +58,10 @@ impl PgAccounts {
         .await
     }
 
-    pub async fn find_user(&self, normalized_email: &str) -> Result<Option<StoredUser>, sqlx::Error> {
+    pub async fn find_user(
+        &self,
+        normalized_email: &str,
+    ) -> Result<Option<StoredUser>, sqlx::Error> {
         let row = sqlx::query(
             "SELECT id, email_normalized, display_name, password_hash \
              FROM users WHERE email_normalized = $1",
