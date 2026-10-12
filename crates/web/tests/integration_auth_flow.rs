@@ -32,11 +32,11 @@ async fn call(
     if let Some(value) = origin {
         request = request.header(header::ORIGIN, value);
     }
-    let response = app
-        .clone()
-        .oneshot(request.body(Body::from(body.to_owned())).expect("request"))
-        .await
-        .expect("response");
+    let mut request = request.body(Body::from(body.to_owned())).expect("request");
+    request.extensions_mut().insert(axum::extract::ConnectInfo(
+        "127.0.0.1:58321".parse::<std::net::SocketAddr>().expect("test peer"),
+    ));
+    let response = app.clone().oneshot(request).await.expect("response");
     let status = response.status();
     let headers = response.headers().clone();
     let body = to_bytes(response.into_body(), 128 * 1024)
