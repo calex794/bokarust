@@ -25,14 +25,19 @@ pub(crate) fn library(items: &[ContinueReading]) -> Html<String> {
             escape_html(&item.chapter_title),
             item.chapter_id,
             fragment,
-        ).expect("write to String");
+        )
+        .expect("write to String");
     }
     if rendered.is_empty() {
         rendered.push_str("<li>Вы пока не сохранили место чтения. Откройте бесплатную главу и выберите «Читать с сохранением места».</li>");
     }
     let body = include_str!("../templates/reading_library.html")
         .replace("<!--LIBRARY_ITEMS-->", &rendered);
-    layout("Продолжить чтение", "Сохранённое место чтения в ваших книгах.", &body)
+    layout(
+        "Продолжить чтение",
+        "Сохранённое место чтения в ваших книгах.",
+        &body,
+    )
 }
 
 pub(crate) fn tracked_reader(
@@ -53,7 +58,8 @@ pub(crate) fn tracked_reader(
              value=\"{position}\" class=\"reader-save-button\">Запомнить место здесь</button>\
              </section>",
             escape_html(block),
-        ).expect("write to String");
+        )
+        .expect("write to String");
     }
     let saved = saved_block
         .filter(|pos| *pos > 0 && usize::try_from(*pos).ok().is_some_and(|v| v <= sections.len()))
@@ -73,7 +79,11 @@ pub(crate) fn tracked_reader(
         .replace("<!--CSRF-->", &escape_html(csrf))
         .replace("<!--SAVED_PLACE-->", &saved)
         .replace("<!--CHAPTER_BLOCKS-->", &blocks);
-    layout(&chapter.chapter_title, "Личная читательская позиция.", &body)
+    layout(
+        &chapter.chapter_title,
+        "Личная читательская позиция.",
+        &body,
+    )
 }
 
 #[cfg(test)]
@@ -82,9 +92,12 @@ mod tests {
     #[test]
     fn progress_reader_is_escaped_and_has_bounded_anchor_list() {
         let chapter = PublicChapterPage {
-            book_id: 1, book_title: "<script>x</script>".into(),
-            chapter_title: "<b>Unsafe</b>".into(), version_id: 5,
-            version_no: 3, body_markdown: "</pre><script>alert(1)</script>".into(),
+            book_id: 1,
+            book_title: "<script>x</script>".into(),
+            chapter_title: "<b>Unsafe</b>".into(),
+            version_id: 5,
+            version_no: 3,
+            body_markdown: "</pre><script>alert(1)</script>".into(),
         };
         let page = tracked_reader(7, &chapter, "csrf", Some(2)).0;
         assert!(!page.contains("<script>alert(1)</script>"));
