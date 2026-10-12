@@ -48,4 +48,4 @@ jobs:
           components: rustfmt, clippy
       - uses: Swatinem/rust-cache@v2
       - name: Compile and exercise real PostgreSQL catalog
-        run: cargo test -p bokarust-web --test postgres_public_catalog -- --nocapture
+        run: cargo test -p bokarust-web --test postgres_public_catalog -- --ignored --nocapture

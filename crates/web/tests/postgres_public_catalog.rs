@@ -47,21 +47,17 @@ async fn request(app: axum::Router, uri: &str) -> (StatusCode, String) {
 }
 
 #[tokio::test]
-async fn postgres_catalog_hides_drafts_and_enforces_identity() {
-    let database_url = match std::env::var("TEST_DATABASE_URL") {
-        Ok(url) => url,
-        Err(_) => {
-            eprintln!("Skipping PostgreSQL integration: TEST_DATABASE_URL is unset");
-            return;
-        }
-    };
+#[ignore = "requires a disposable PostgreSQL database via TEST_DATABASE_URL"]
+async fn integration_postgres_catalog_hides_drafts_and_enforces_identity() {
+    let database_url = std::env::var("TEST_DATABASE_URL")
+        .expect("TEST_DATABASE_URL is required for the PostgreSQL integration test");
     let pool = PgPool::connect(&database_url).await.expect("test database");
     let db_name: String = sqlx::query_scalar("SELECT current_database()")
         .fetch_one(&pool)
         .await
         .expect("database name");
     assert!(
-        db_name == "bokarust_test",
+        matches!(db_name.as_str(), "bokarust_test" | "bokarust_ci"),
         "refusing to modify a non-test database"
     );
 
