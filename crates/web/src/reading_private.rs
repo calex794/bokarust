@@ -184,8 +184,8 @@ async fn persist_place(
         .await
         .map_err(|_| deny(StatusCode::SERVICE_UNAVAILABLE))?
         .ok_or_else(|| deny(StatusCode::NOT_FOUND))?;
-    let version_id = i64::try_from(chapter.version_id)
-        .map_err(|_| deny(StatusCode::SERVICE_UNAVAILABLE))?;
+    let version_id =
+        i64::try_from(chapter.version_id).map_err(|_| deny(StatusCode::SERVICE_UNAVAILABLE))?;
     if version_id != form.version_id {
         return Err(deny(StatusCode::CONFLICT));
     }
