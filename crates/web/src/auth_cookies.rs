@@ -131,6 +131,13 @@ pub(crate) fn private_response<T: IntoResponse>(result: T, cookies: &[String]) -
         header::X_CONTENT_TYPE_OPTIONS,
         HeaderValue::from_static("nosniff"),
     );
+    response.headers_mut().insert(
+        "x-frame-options", HeaderValue::from_static("DENY"),
+    );
+    response.headers_mut().insert(
+        "content-security-policy",
+        HeaderValue::from_static("default-src 'none'; style-src 'self'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'"),
+    );
     for cookie in cookies {
         if let Ok(mut value) = HeaderValue::from_str(cookie) {
             value.set_sensitive(true);
