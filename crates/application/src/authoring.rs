@@ -182,7 +182,8 @@ mod tests {
 
     #[test]
     fn chapter_is_published_on_save_with_a_fixed_maximum_length() {
-        let input = |body: &str| SaveChapterRequest {
+        fn input(body: &str) -> SaveChapterRequest<'_> {
+            SaveChapterRequest {
             book_id: 1,
             chapter_id: None,
             number: 1,
@@ -192,7 +193,8 @@ mod tests {
             access: "free",
             price_cents: 0,
             command_key: KEY,
-        };
+            }
+        }
         assert_eq!(
             save_chapter(input(&"я".repeat(50_000)))
                 .unwrap()
