@@ -19,7 +19,7 @@ use tower::ServiceExt;
 fn encode(raw: &str) -> String {
     raw.bytes()
         .map(|b| {
-            if b.is_ascii_alphanumeric() || matches!(b, b'-' | b'_' | b'.' | b'.' | b'*') {
+            if b.is_ascii_alphanumeric() || matches!(b, b'-' | b'_' | b'.' | b'*') {
                 (b as char).to_string()
             } else {
                 format!("%{b:02X}")
