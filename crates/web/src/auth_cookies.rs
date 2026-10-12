@@ -131,6 +131,15 @@ pub(crate) fn private_response<T: IntoResponse>(result: T, cookies: &[String]) -
         header::X_CONTENT_TYPE_OPTIONS,
         HeaderValue::from_static("nosniff"),
     );
+    response
+        .headers_mut()
+        .insert("x-frame-options", HeaderValue::from_static("DENY"));
+    response.headers_mut().insert(
+        "content-security-policy",
+        HeaderValue::from_static(
+            "default-src 'none'; script-src 'none'; style-src 'self'; img-src 'self';              form-action 'self'; base-uri 'none'; frame-ancestors 'none'",
+        ),
+    );
     for cookie in cookies {
         if let Ok(mut value) = HeaderValue::from_str(cookie) {
             value.set_sensitive(true);
@@ -151,6 +160,19 @@ mod tests {
             secure,
             origin: "https://books.example".into(),
         }
+    }
+
+    #[test]
+    fn private_pages_cannot_be_framed_or_run_scripts() {
+        let response = private_response(StatusCode::OK, &[]);
+        let headers = response.headers();
+        assert_eq!(headers[header::CACHE_CONTROL], "no-store");
+        assert_eq!(headers["x-frame-options"], "DENY");
+        let csp = headers["content-security-policy"].to_str().unwrap();
+        assert!(csp.contains("script-src 'none'"));
+        assert!(csp.contains("frame-ancestors 'none'"));
+        assert!(csp.contains("form-action 'self'"));
+        assert!(csp.contains("style-src 'self'"));
     }
 
     #[test]

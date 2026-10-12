@@ -139,6 +139,11 @@ async fn integration_auth_registration_to_logout_and_login() {
     assert!(html.contains("name=\"email\""));
     assert!(html.contains("name=\"display_name\""));
     assert_eq!(headers[header::CACHE_CONTROL], "no-store");
+    assert_eq!(headers["x-frame-options"], "DENY");
+    assert!(headers["content-security-policy"]
+        .to_str()
+        .unwrap()
+        .contains("script-src 'none'"));
     let csrf_cookie = cookie(&headers, "bkr-dev-csrf");
     let token = csrf(&html);
     let registration = form(&[
