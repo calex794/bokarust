@@ -112,7 +112,7 @@ fn chapter_body(
         ("title", title),
         ("body_markdown", text),
         ("access_level", access),
-        ("price_cents", price),
+        ("price_amount", price),
     ])
 }
 
@@ -525,12 +525,12 @@ async fn integration_author_create_save_replay_conflict_and_permissions() {
         StatusCode::NOT_FOUND
     );
     let row =
-        sqlx::query("SELECT price_cents, access_level, edit_revision FROM chapters WHERE id=$1")
+        sqlx::query("SELECT price_amount, access_level, edit_revision FROM chapters WHERE id=$1")
             .bind(chapter_id)
             .fetch_one(&pool)
             .await
             .unwrap();
-    assert_eq!(row.try_get::<i64, _>("price_cents").unwrap(), 150);
+    assert_eq!(row.try_get::<i64, _>("price_amount").unwrap(), 150);
     assert_eq!(row.try_get::<String, _>("access_level").unwrap(), "paid");
     assert_eq!(row.try_get::<i64, _>("edit_revision").unwrap(), 3);
     let releases: i64 =
