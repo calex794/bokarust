@@ -33,7 +33,12 @@ pub enum ProgressError {
 }
 
 pub fn valid_place(block_index: i32, block_count: usize) -> Result<(), ProgressError> {
-    if block_index <= 0 || usize::try_from(block_index).ok().filter(|n| *n <= block_count).is_none() {
+    if block_index <= 0
+        || usize::try_from(block_index)
+            .ok()
+            .filter(|n| *n <= block_count)
+            .is_none()
+    {
         return Err(ProgressError::Invalid);
     }
     Ok(())
@@ -45,7 +50,10 @@ mod tests {
 
     #[test]
     fn blocks_cover_entire_text_without_loss() {
-        let source = (0..1200).map(|i| format!("Текст {i}")).collect::<Vec<_>>().join("\n\n");
+        let source = (0..1200)
+            .map(|i| format!("Текст {i}"))
+            .collect::<Vec<_>>()
+            .join("\n\n");
         let blocks = reader_blocks(&source);
         assert_eq!(blocks.len(), 200);
         assert_eq!(blocks.join("\n\n"), source);
@@ -53,7 +61,10 @@ mod tests {
 
     #[test]
     fn blocks_keep_original_html_as_data() {
-        assert_eq!(reader_blocks("a\n\n<script>x</script>"), vec!["a", "<script>x</script>"]);
+        assert_eq!(
+            reader_blocks("a\n\n<script>x</script>"),
+            vec!["a", "<script>x</script>"]
+        );
         assert_eq!(reader_blocks("single").len(), 1);
         assert!(valid_place(1, 1).is_ok());
         assert_eq!(valid_place(0, 1), Err(ProgressError::Invalid));
