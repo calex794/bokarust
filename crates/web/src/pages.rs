@@ -3,9 +3,11 @@ use axum::{
     http::header,
     response::{Html, IntoResponse},
 };
+use bokarust_application::reading::{PublicBookPage, PublicChapterPage};
 use std::fmt::Write;
 
 pub(crate) struct PublicBookCard {
+    pub id: u64,
     pub title: String,
     pub language: String,
 }
@@ -45,7 +47,8 @@ fn book_cards(books: &[PublicBookCard]) -> String {
         let language = escape_html(&book.language);
         write!(
             html,
-            "<article class=\"book-card\"><div class=\"book-card__cover\" aria-hidden=\"true\">К</div><div class=\"book-card__body\"><span class=\"book-card__label\">Книга · {language}</span><h3 class=\"book-card__title\">{title}</h3></div></article>"
+            "<article class=\"book-card\"><div class=\"book-card__cover\" aria-hidden=\"true\">К</div><div class=\"book-card__body\"><span class=\"book-card__label\">Книга · {language}</span><h3 class=\"book-card__title\"><a href=\"/books/{}\">{title}</a></h3></div></article>",
+            book.id
         )
         .expect("writing into String cannot fail");
     }
@@ -70,6 +73,45 @@ pub(crate) fn catalog(books: &[PublicBookCard]) -> Html<String> {
         "Опубликованные книги и переводы на Пандаолейт.",
         &content,
     )
+}
+
+pub(crate) fn book_detail(book: &PublicBookPage) -> Html<String> {
+    let mut chapter_links = String::new();
+    if book.chapters.is_empty() {
+        chapter_links
+            .push_str("<p class=\"empty-state\">Пока нет опубликованных бесплатных глав.</p>");
+    } else {
+        for chapter in &book.chapters {
+            write!(
+                chapter_links,
+                "<li><a href=\"/reader/{}\">Глава {}. {}</a></li>",
+                chapter.id,
+                chapter.number,
+                escape_html(&chapter.title)
+            )
+            .expect("writing into String cannot fail");
+        }
+    }
+    let body = include_str!("../templates/book_detail.html")
+        .replace("<!--BOOK_TITLE-->", &escape_html(&book.title))
+        .replace("<!--BOOK_LANGUAGE-->", &escape_html(&book.language))
+        .replace("<!--CHAPTER_LIST-->", &chapter_links);
+    layout(&book.title, "Опубликованные главы книги.", &body)
+}
+
+/// Render Markdown source as escaped, wrapped text until a fully sanitized
+/// Markdown renderer has passed separate security and visual testing.
+pub(crate) fn reader(chapter: &PublicChapterPage) -> Html<String> {
+    let body = include_str!("../templates/reader.html")
+        .replace("<!--BOOK_ID-->", &chapter.book_id.to_string())
+        .replace("<!--BOOK_TITLE-->", &escape_html(&chapter.book_title))
+        .replace("<!--CHAPTER_TITLE-->", &escape_html(&chapter.chapter_title))
+        .replace("<!--CHAPTER_VERSION-->", &chapter.version_no.to_string())
+        .replace(
+            "<!--CHAPTER_CONTENT-->",
+            &escape_html(&chapter.body_markdown),
+        );
+    layout(&chapter.chapter_title, "Опубликованный текст главы.", &body)
 }
 
 pub(crate) async fn login() -> impl IntoResponse {
@@ -128,6 +170,7 @@ mod tests {
     #[test]
     fn escapes_book_titles_before_rendering() {
         let page = home(&[PublicBookCard {
+            id: 9,
             title: "<script>alert('x')</script> & \"hello\"".to_owned(),
             language: "ru".to_owned(),
         }]);
@@ -135,6 +178,7 @@ mod tests {
         assert!(page.0.contains("&#39;x&#39;"));
         assert!(page.0.contains("&amp; &quot;hello&quot;"));
         assert!(!page.0.contains("<script>"));
+        assert!(page.0.contains("href=\"/books/9\""));
     }
 
     #[test]

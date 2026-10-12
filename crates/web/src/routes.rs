@@ -1,20 +1,22 @@
 use crate::pages;
 use axum::{
-    extract::{Query, State},
-    http::StatusCode,
-    response::Html,
+    extract::{Path, Query, State},
+    http::{header, StatusCode},
+    response::{Html, IntoResponse},
     routing::get,
     Json, Router,
 };
 use bokarust_application::catalog::{
     CatalogError, ListPublicBooks, PublicBookRepository, DEFAULT_PAGE_SIZE,
 };
+use bokarust_application::reading::{PublicReadingRepository, ReadingError};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
 #[derive(Clone)]
 struct AppState {
     catalog: Arc<dyn PublicBookRepository>,
+    reader: Option<Arc<dyn PublicReadingRepository>>,
 }
 
 #[derive(Deserialize)]
@@ -48,6 +50,7 @@ async fn public_book_cards(
     Ok(books
         .into_iter()
         .map(|book| pages::PublicBookCard {
+            id: book.id(),
             title: book.title().to_owned(),
             language: book.key().target_language().to_owned(),
         })
@@ -86,18 +89,56 @@ async fn list_public_books(
     Ok(Json(response))
 }
 
-fn catalog_router(catalog: Arc<dyn PublicBookRepository>) -> Router {
+async fn book_detail_page(
+    State(state): State<AppState>,
+    Path(id): Path<u64>,
+) -> Result<Html<String>, StatusCode> {
+    let repository = state.reader.ok_or(StatusCode::NOT_FOUND)?;
+    let book = repository
+        .public_book(id)
+        .await
+        .map_err(|error| match error {
+            ReadingError::Unavailable => StatusCode::SERVICE_UNAVAILABLE,
+        })?
+        .ok_or(StatusCode::NOT_FOUND)?;
+    Ok(pages::book_detail(&book))
+}
+
+async fn chapter_reader_page(
+    State(state): State<AppState>,
+    Path(id): Path<u64>,
+) -> Result<impl IntoResponse, StatusCode> {
+    let repository = state.reader.ok_or(StatusCode::NOT_FOUND)?;
+    let chapter = repository
+        .public_chapter(id)
+        .await
+        .map_err(|error| match error {
+            ReadingError::Unavailable => StatusCode::SERVICE_UNAVAILABLE,
+        })?
+        .ok_or(StatusCode::NOT_FOUND)?;
+    Ok((
+        [(header::CACHE_CONTROL, "no-store")],
+        pages::reader(&chapter),
+    ))
+}
+
+fn catalog_router(
+    catalog: Arc<dyn PublicBookRepository>,
+    reader: Option<Arc<dyn PublicReadingRepository>>,
+) -> Router {
     Router::new()
         .route("/", get(homepage))
         .route("/catalog", get(catalog_page))
+        .route("/books/{id}", get(book_detail_page))
+        .route("/reader/{id}", get(chapter_reader_page))
         .route("/assets/site.css", get(pages::stylesheet))
         .route("/healthz", get(health))
         .route("/api/v1/books", get(list_public_books))
-        .with_state(AppState { catalog })
+        .with_state(AppState { catalog, reader })
 }
 
 pub fn router(catalog: Arc<dyn PublicBookRepository>) -> Router {
-    catalog_router(catalog)
+    catalog_router(catalog, None)
         .route("/login", get(pages::login))
         .route("/register", get(pages::register))
 }
@@ -108,7 +149,22 @@ pub fn router_with_auth(
     secure: bool,
     public_origin: String,
 ) -> Router {
-    catalog_router(catalog).merge(crate::auth::router(accounts, secure, public_origin))
+    catalog_router(catalog, None).merge(crate::auth::router(accounts, secure, public_origin))
+}
+
+/// Production wiring; demo routers cannot accidentally return chapter text.
+pub fn router_with_auth_and_reading(
+    catalog: Arc<dyn PublicBookRepository>,
+    reader: Arc<dyn PublicReadingRepository>,
+    accounts: bokarust_adapters::postgres_accounts::PgAccounts,
+    secure: bool,
+    public_origin: String,
+) -> Router {
+    catalog_router(catalog, Some(reader)).merge(crate::auth::router(
+        accounts,
+        secure,
+        public_origin,
+    ))
 }
 
 #[cfg(test)]

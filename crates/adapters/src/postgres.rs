@@ -24,7 +24,7 @@ impl PublicBookRepository for PgCatalog {
         let limit = i64::try_from(limit).map_err(|_| CatalogError::InvalidLimit)?;
         let rows = sqlx::query(
             "SELECT id, source_identity, target_language, title, visibility \
-             FROM books WHERE visibility = 'public' ORDER BY id ASC LIMIT $1",
+             FROM books WHERE visibility = 'public' AND NOT admin_hold AND NOT is_deleted ORDER BY id ASC LIMIT $1",
         )
         .bind(limit)
         .fetch_all(&self.pool)
