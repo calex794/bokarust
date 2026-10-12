@@ -1,7 +1,7 @@
 //! Authenticated reading positions. Public reader remains read-only.
 #![forbid(unsafe_code)]
 use crate::{
-    auth_cookies::{private_response, CookiePolicy},
+    auth_cookies::{private_reader_response, private_response, CookiePolicy},
     reading_pages,
 };
 use axum::{
@@ -52,6 +52,7 @@ pub(crate) fn router(
         .route("/me/library", get(library))
         .route("/read/{chapter_id}", get(read_chapter))
         .route("/read/{chapter_id}/place", post(save_place))
+        .route("/read/{chapter_id}/place/auto", post(save_place_auto))
         .layer(DefaultBodyLimit::max(2048))
         .with_state(state)
 }
@@ -130,7 +131,7 @@ async fn read_chapter(
         Err(error) => return failure(error),
     };
     let (csrf, cookies) = state.cookies.csrf_for_page(&headers);
-    private_response(
+    private_reader_response(
         reading_pages::tracked_reader(chapter_id, &chapter, &csrf, saved),
         &cookies,
     )
@@ -142,43 +143,60 @@ async fn save_place(
     headers: HeaderMap,
     Form(form): Form<PositionForm>,
 ) -> Response {
-    if !state.cookies.same_origin(&headers) || !state.cookies.valid_csrf(&headers, &form.csrf_token)
-    {
-        return deny(StatusCode::FORBIDDEN);
+    let block_index = form.block_index;
+    match persist_place(&state, chapter_id, &headers, &form).await {
+        Ok(()) => private_response(
+            Redirect::to(&format!("/read/{chapter_id}#p-{block_index}")),
+            &[],
+        ),
+        Err(response) => response,
     }
-    let user = match user_id(&state, &headers).await {
-        Ok(id) => id,
-        Err(error) => return deny(error),
-    };
-    let Ok(chapter_key) = u64::try_from(chapter_id) else {
-        return deny(StatusCode::NOT_FOUND);
-    };
-    let chapter = match state.reader.public_chapter(chapter_key).await {
-        Ok(Some(chapter)) => chapter,
-        Ok(None) => return deny(StatusCode::NOT_FOUND),
-        Err(_) => return deny(StatusCode::SERVICE_UNAVAILABLE),
-    };
-    let Ok(version_id) = i64::try_from(chapter.version_id) else {
-        return deny(StatusCode::SERVICE_UNAVAILABLE);
-    };
+}
+
+/// No redirect or chapter HTML in response to background requests.
+async fn save_place_auto(
+    State(state): State<ReadingState>,
+    Path(chapter_id): Path<i64>,
+    headers: HeaderMap,
+    Form(form): Form<PositionForm>,
+) -> Response {
+    match persist_place(&state, chapter_id, &headers, &form).await {
+        Ok(()) => private_response(StatusCode::NO_CONTENT, &[]),
+        Err(response) => response,
+    }
+}
+
+/// Both the manual and background routes use exactly the same access checks.
+async fn persist_place(
+    state: &ReadingState,
+    chapter_id: i64,
+    headers: &HeaderMap,
+    form: &PositionForm,
+) -> Result<(), Response> {
+    if !state.cookies.same_origin(headers) || !state.cookies.valid_csrf(headers, &form.csrf_token) {
+        return Err(deny(StatusCode::FORBIDDEN));
+    }
+    let user = user_id(state, headers).await.map_err(deny)?;
+    let chapter_key = u64::try_from(chapter_id).map_err(|_| deny(StatusCode::NOT_FOUND))?;
+    let chapter = state
+        .reader
+        .public_chapter(chapter_key)
+        .await
+        .map_err(|_| deny(StatusCode::SERVICE_UNAVAILABLE))?
+        .ok_or_else(|| deny(StatusCode::NOT_FOUND))?;
+    let version_id = i64::try_from(chapter.version_id)
+        .map_err(|_| deny(StatusCode::SERVICE_UNAVAILABLE))?;
     if version_id != form.version_id {
-        return deny(StatusCode::CONFLICT);
+        return Err(deny(StatusCode::CONFLICT));
     }
-    if let Err(error) = valid_place(
+    valid_place(
         form.block_index,
         reader_blocks(&chapter.body_markdown).len(),
-    ) {
-        return failure(error);
-    }
-    match state
+    )
+    .map_err(failure)?;
+    state
         .progress
         .save_position(user, chapter_id, version_id, form.block_index)
         .await
-    {
-        Ok(()) => private_response(
-            Redirect::to(&format!("/read/{chapter_id}#p-{}", form.block_index)),
-            &[],
-        ),
-        Err(error) => failure(error),
-    }
+        .map_err(failure)
 }
