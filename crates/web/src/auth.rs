@@ -33,19 +33,19 @@ struct RegisterForm {
     email: String,
     display_name: String,
     password: String,
-    csrf_token: String,
+    csrf_token: Option<String>,
 }
 
 #[derive(Deserialize)]
 struct LoginForm {
     email: String,
     password: String,
-    csrf_token: String,
+    csrf_token: Option<String>,
 }
 
 #[derive(Deserialize)]
 struct LogoutForm {
-    csrf_token: String,
+    csrf_token: Option<String>,
 }
 
 pub(crate) fn router(accounts: PgAccounts, secure: bool, origin: String) -> Router {
@@ -123,7 +123,7 @@ async fn register(
     Form(form): Form<RegisterForm>,
 ) -> Response {
     if !state.cookies.same_origin(&headers)
-        || !state.cookies.valid_csrf(&headers, &form.csrf_token)
+        || !state.cookies.valid_csrf(&headers, form.csrf_token.as_deref().unwrap_or(""))
     {
         return deny(StatusCode::FORBIDDEN);
     }
@@ -177,7 +177,7 @@ async fn login(
     Form(form): Form<LoginForm>,
 ) -> Response {
     if !state.cookies.same_origin(&headers)
-        || !state.cookies.valid_csrf(&headers, &form.csrf_token)
+        || !state.cookies.valid_csrf(&headers, form.csrf_token.as_deref().unwrap_or(""))
     {
         return deny(StatusCode::FORBIDDEN);
     }
@@ -256,7 +256,7 @@ async fn logout(
     Form(form): Form<LogoutForm>,
 ) -> Response {
     if !state.cookies.same_origin(&headers)
-        || !state.cookies.valid_csrf(&headers, &form.csrf_token)
+        || !state.cookies.valid_csrf(&headers, form.csrf_token.as_deref().unwrap_or(""))
     {
         return deny(StatusCode::FORBIDDEN);
     }
