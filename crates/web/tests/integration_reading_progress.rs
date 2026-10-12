@@ -229,7 +229,10 @@ async fn integration_progress_resume_without_rollback_or_access_leak() {
     let (asset_status, asset_headers, asset_body) =
         call(&app, "GET", "/assets/reader-progress.js", "", "", "").await;
     assert_eq!(asset_status, StatusCode::OK);
-    assert!(asset_headers[header::CONTENT_TYPE].to_str().unwrap().starts_with("text/javascript"));
+    assert!(asset_headers[header::CONTENT_TYPE]
+        .to_str()
+        .unwrap()
+        .starts_with("text/javascript"));
     assert_eq!(asset_headers[header::X_CONTENT_TYPE_OPTIONS], "nosniff");
     assert!(asset_body.contains("sendBeacon"));
 
@@ -255,20 +258,55 @@ async fn integration_progress_resume_without_rollback_or_access_leak() {
 
     // Auto-save is a separate 204 endpoint but has the same CSRF and session checks.
     assert_eq!(
-        call(&app, "POST", &autosave_url, &first, &one_cookie, "http://localhost:3000").await.0,
+        call(
+            &app,
+            "POST",
+            &autosave_url,
+            &first,
+            &one_cookie,
+            "http://localhost:3000"
+        )
+        .await
+        .0,
         StatusCode::FORBIDDEN
     );
     assert_eq!(
-        call(&app, "POST", &autosave_url, &first, &csrf_cookie, "http://localhost:3000").await.0,
+        call(
+            &app,
+            "POST",
+            &autosave_url,
+            &first,
+            &csrf_cookie,
+            "http://localhost:3000"
+        )
+        .await
+        .0,
         StatusCode::UNAUTHORIZED
     );
     assert_eq!(
-        call(&app, "POST", &autosave_url, &first, &browser, "https://evil.example").await.0,
+        call(
+            &app,
+            "POST",
+            &autosave_url,
+            &first,
+            &browser,
+            "https://evil.example"
+        )
+        .await
+        .0,
         StatusCode::FORBIDDEN
     );
     assert_eq!(
-        call(&app, "POST", &autosave_url, &place(&csrf, first_version + 1, 1),
-            &browser, "http://localhost:3000").await.0,
+        call(
+            &app,
+            "POST",
+            &autosave_url,
+            &place(&csrf, first_version + 1, 1),
+            &browser,
+            "http://localhost:3000"
+        )
+        .await
+        .0,
         StatusCode::CONFLICT
     );
 
@@ -353,13 +391,18 @@ async fn integration_progress_resume_without_rollback_or_access_leak() {
     );
     assert_eq!(current_position(&pool, one, book_id).await, (chapter_id, 1));
     let (auto_status, auto_headers, auto_body) = call(
-        &app, "POST", &autosave_url, &first, &browser, "http://localhost:3000",
-    ).await;
+        &app,
+        "POST",
+        &autosave_url,
+        &first,
+        &browser,
+        "http://localhost:3000",
+    )
+    .await;
     assert_eq!(auto_status, StatusCode::NO_CONTENT);
     assert_eq!(auto_headers[header::CACHE_CONTROL], "no-store");
     assert!(!auto_headers.contains_key(header::LOCATION));
     assert!(auto_body.is_empty());
-
 
     // Parallel tabs are serialized by PostgreSQL's upsert condition.
     let (a, b) = tokio::join!(
@@ -406,7 +449,16 @@ async fn integration_progress_resume_without_rollback_or_access_leak() {
 
     // A delayed autosave must be successful as a no-op and never move back.
     assert_eq!(
-        call(&app, "POST", &autosave_url, &middle, &browser, "http://localhost:3000").await.0,
+        call(
+            &app,
+            "POST",
+            &autosave_url,
+            &middle,
+            &browser,
+            "http://localhost:3000"
+        )
+        .await
+        .0,
         StatusCode::NO_CONTENT
     );
     assert_eq!(current_position(&pool, one, book_id).await, (chapter_id, 4));
@@ -468,7 +520,16 @@ async fn integration_progress_resume_without_rollback_or_access_leak() {
     assert_eq!(current_position(&pool, one, book_id).await, (chapter_id, 1));
 
     assert_eq!(
-        call(&app, "POST", &autosave_url, &last, &browser, "http://localhost:3000").await.0,
+        call(
+            &app,
+            "POST",
+            &autosave_url,
+            &last,
+            &browser,
+            "http://localhost:3000"
+        )
+        .await
+        .0,
         StatusCode::CONFLICT
     );
 
