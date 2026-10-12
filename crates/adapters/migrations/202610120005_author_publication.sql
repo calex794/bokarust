@@ -9,8 +9,10 @@ ALTER TABLE chapters
     ADD CONSTRAINT chapters_price_matches_access CHECK (
         (access_level = 'free' AND price_cents = 0)
         OR (access_level = 'paid' AND price_cents > 0)
-    );
+    ) NOT VALID;
 
+-- Existing imported paid chapters may not have prices. The NOT VALID constraint
+-- protects every future write without inventing a price for old records.
 -- New chapter content can be reused by hash without mutating prior versions.
 -- Existing imported versions may have NULL until a separate reconciliation.
 ALTER TABLE chapter_versions
