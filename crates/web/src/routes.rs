@@ -132,7 +132,10 @@ fn catalog_router(
         .route("/books/{id}", get(book_detail_page))
         .route("/reader/{id}", get(chapter_reader_page))
         .route("/assets/site.css", get(pages::stylesheet))
-        .route("/assets/reader-progress.js", get(pages::reader_progress_script))
+        .route(
+            "/assets/reader-progress.js",
+            get(pages::reader_progress_script),
+        )
         .route("/healthz", get(health))
         .route("/api/v1/books", get(list_public_books))
         .with_state(AppState { catalog, reader })
