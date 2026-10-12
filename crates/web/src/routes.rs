@@ -157,8 +157,11 @@ pub fn router_with_auth_and_reading(
     secure: bool,
     public_origin: String,
 ) -> Router {
-    catalog_router(catalog, Some(reader))
-        .merge(crate::auth::router(accounts, secure, public_origin))
+    catalog_router(catalog, Some(reader)).merge(crate::auth::router(
+        accounts,
+        secure,
+        public_origin,
+    ))
 }
 
 #[cfg(test)]

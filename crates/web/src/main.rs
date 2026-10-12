@@ -58,7 +58,11 @@ async fn main() -> Result<(), Box<dyn Error>> {
         Some(accounts) => {
             let reader = reader.expect("PostgreSQL reader accompanies PostgreSQL accounts");
             bokarust_web::router_with_auth_and_reading(
-                catalog, reader, accounts, !insecure, public_origin,
+                catalog,
+                reader,
+                accounts,
+                !insecure,
+                public_origin,
             )
         }
         None => bokarust_web::router(catalog),

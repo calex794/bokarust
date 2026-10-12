@@ -78,9 +78,8 @@ pub(crate) fn catalog(books: &[PublicBookCard]) -> Html<String> {
 pub(crate) fn book_detail(book: &PublicBookPage) -> Html<String> {
     let mut chapter_links = String::new();
     if book.chapters.is_empty() {
-        chapter_links.push_str(
-            "<p class=\"empty-state\">Пока нет опубликованных бесплатных глав.</p>",
-        );
+        chapter_links
+            .push_str("<p class=\"empty-state\">Пока нет опубликованных бесплатных глав.</p>");
     } else {
         for chapter in &book.chapters {
             write!(
@@ -108,7 +107,10 @@ pub(crate) fn reader(chapter: &PublicChapterPage) -> Html<String> {
         .replace("<!--BOOK_TITLE-->", &escape_html(&chapter.book_title))
         .replace("<!--CHAPTER_TITLE-->", &escape_html(&chapter.chapter_title))
         .replace("<!--CHAPTER_VERSION-->", &chapter.version_no.to_string())
-        .replace("<!--CHAPTER_CONTENT-->", &escape_html(&chapter.body_markdown));
+        .replace(
+            "<!--CHAPTER_CONTENT-->",
+            &escape_html(&chapter.body_markdown),
+        );
     layout(&chapter.chapter_title, "Опубликованный текст главы.", &body)
 }
 
