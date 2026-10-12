@@ -116,7 +116,10 @@ async fn chapter_reader_page(
             ReadingError::Unavailable => StatusCode::SERVICE_UNAVAILABLE,
         })?
         .ok_or(StatusCode::NOT_FOUND)?;
-    Ok(([(header::CACHE_CONTROL, "no-store")], pages::reader(&chapter)))
+    Ok((
+        [(header::CACHE_CONTROL, "no-store")],
+        pages::reader(&chapter),
+    ))
 }
 
 fn catalog_router(

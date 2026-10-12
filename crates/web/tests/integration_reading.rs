@@ -133,11 +133,13 @@ async fn integration_reading_deny_private_and_serve_published() {
     let second = version(&pool, live, 2, "NEW_PUBLISHED_TEXT").await;
     publish(&pool, live, first).await;
     // Database rejects edits to immutable historical versions.
-    assert!(sqlx::query("UPDATE chapter_versions SET body_markdown='tampered' WHERE id=$1")
-        .bind(first)
-        .execute(&pool)
-        .await
-        .is_err());
+    assert!(
+        sqlx::query("UPDATE chapter_versions SET body_markdown='tampered' WHERE id=$1")
+            .bind(first)
+            .execute(&pool)
+            .await
+            .is_err()
+    );
     // Author and reader agree on at most 50,000 Unicode characters.
     assert!(sqlx::query(
         "INSERT INTO chapter_versions (chapter_id,version_no,body_markdown) VALUES ($1,$2,$3)"
