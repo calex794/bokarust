@@ -12,8 +12,7 @@ use axum::{
     Router,
 };
 use bokarust_adapters::{
-    account_security::session_token_digest,
-    postgres_accounts::PgAccounts,
+    account_security::session_token_digest, postgres_accounts::PgAccounts,
     postgres_progress::PgReadingProgress,
 };
 use bokarust_application::{
@@ -71,7 +70,10 @@ fn failure(error: ProgressError) -> Response {
 }
 
 async fn user_id(state: &ReadingState, headers: &HeaderMap) -> Result<i64, StatusCode> {
-    let token = state.cookies.session_token(headers).ok_or(StatusCode::UNAUTHORIZED)?;
+    let token = state
+        .cookies
+        .session_token(headers)
+        .ok_or(StatusCode::UNAUTHORIZED)?;
     state
         .accounts
         .active_session_user(&session_token_digest(&token))
@@ -119,7 +121,11 @@ async fn read_chapter(
     let Ok(version_id) = i64::try_from(chapter.version_id) else {
         return deny(StatusCode::SERVICE_UNAVAILABLE);
     };
-    let saved = match state.progress.saved_block(user, chapter_id, version_id).await {
+    let saved = match state
+        .progress
+        .saved_block(user, chapter_id, version_id)
+        .await
+    {
         Ok(place) => place,
         Err(error) => return failure(error),
     };
@@ -136,8 +142,7 @@ async fn save_place(
     headers: HeaderMap,
     Form(form): Form<PositionForm>,
 ) -> Response {
-    if !state.cookies.same_origin(&headers)
-        || !state.cookies.valid_csrf(&headers, &form.csrf_token)
+    if !state.cookies.same_origin(&headers) || !state.cookies.valid_csrf(&headers, &form.csrf_token)
     {
         return deny(StatusCode::FORBIDDEN);
     }
@@ -159,10 +164,14 @@ async fn save_place(
     if version_id != form.version_id {
         return deny(StatusCode::CONFLICT);
     }
-    if let Err(error) = valid_place(form.block_index, reader_blocks(&chapter.body_markdown).len()) {
+    if let Err(error) = valid_place(
+        form.block_index,
+        reader_blocks(&chapter.body_markdown).len(),
+    ) {
         return failure(error);
     }
-    match state.progress
+    match state
+        .progress
         .save_position(user, chapter_id, version_id, form.block_index)
         .await
     {
