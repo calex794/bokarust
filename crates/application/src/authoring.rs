@@ -42,6 +42,7 @@ pub fn new_book(
     let key = BookKey::new(source, language).map_err(|_| AuthorError::Invalid)?;
     let title = title.trim();
     if key.source_identity().chars().count() > 256
+        || key.target_language().len() > 32
         || key.source_identity().chars().any(char::is_control)
         || !(1..=200).contains(&title.chars().count())
         || title.chars().any(char::is_control)
