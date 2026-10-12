@@ -40,6 +40,8 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - name: Verify formatting
         run: cargo fmt --all -- --check
+      - name: Verify reader autosave browser behavior
+        run: timeout --signal=TERM --kill-after=5s 30s node --test crates/web/tests/reader_progress_browser.test.cjs
       - name: Verify all Rust targets
         run: cargo clippy --workspace --all-targets -- -D warnings
       - name: Install Nextest

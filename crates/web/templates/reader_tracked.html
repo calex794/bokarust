@@ -6,7 +6,8 @@
     </nav>
     <h1><!--CHAPTER_TITLE--></h1>
     <p class="eyebrow">Опубликованная версия <!--CHAPTER_VERSION--></p>
-    <p class="page-description">Чтобы продолжить с этого места позднее, нажмите «Запомнить место» возле нужного отрывка. Место сохраняется в вашем аккаунте.</p>
+    <p class="page-description">Место сохраняется в вашем аккаунте. Если автоматическое сохранение недоступно, используйте кнопку возле нужного отрывка.</p>
+    <p id="reader-save-status" class="reader-save-status" role="status" aria-live="polite">Чтобы сохранить место, нажмите «Запомнить место здесь» возле отрывка.</p>
     <!--SAVED_PLACE-->
     <form id="save-position" action="/read/<!--CHAPTER_ID-->/place" method="post">
       <input type="hidden" name="csrf_token" value="<!--CSRF-->">
@@ -15,4 +16,5 @@
     <article class="reader-sections"><!--CHAPTER_BLOCKS--></article>
     <p><a href="/me/library">К сохранённому чтению</a></p>
   </div>
+  <script src="/assets/reader-progress.js" defer></script>
 </section>

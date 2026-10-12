@@ -216,3 +216,6 @@ button:disabled, input:disabled { cursor: not-allowed; }
 .reader-piece__text { margin: 0; font: 19px/1.85 Georgia, "Times New Roman", serif; white-space: pre-wrap; overflow-wrap: anywhere; }
 .reader-save-button { margin-top: 10px; border: 0; background: transparent; color: #27613f; text-decoration: underline; cursor: pointer; font: inherit; }
 .reader-save-button:focus-visible { outline: 2px solid currentColor; outline-offset: 4px; }
+
+/* Accessible autosave feedback; never obstruct the reading surface. */
+.reader-save-status { min-height: 1.6em; font-size: 0.92rem; color: #27613f; }

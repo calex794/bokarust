@@ -209,6 +209,7 @@ async fn integration_progress_resume_without_rollback_or_access_leak() {
     );
     let read_url = format!("/read/{chapter_id}");
     let place_url = format!("/read/{chapter_id}/place");
+    let autosave_url = format!("{place_url}/auto");
 
     let (status, headers, _) = call(&app, "GET", "/me/library", "", "", "").await;
     assert_eq!(status, StatusCode::SEE_OTHER);
@@ -223,14 +224,28 @@ async fn integration_progress_resume_without_rollback_or_access_leak() {
     assert!(public_html.contains(&format!("href=\"/read/{chapter_id}\"")));
     assert!(!public_html.contains("name=\"csrf_token\""));
 
+    // The public reader remains script-free; the asset contains no private data.
+    assert!(!public_html.contains("/assets/reader-progress.js"));
+    let (asset_status, asset_headers, asset_body) =
+        call(&app, "GET", "/assets/reader-progress.js", "", "", "").await;
+    assert_eq!(asset_status, StatusCode::OK);
+    assert!(asset_headers[header::CONTENT_TYPE]
+        .to_str()
+        .unwrap()
+        .starts_with("text/javascript"));
+    assert_eq!(asset_headers[header::X_CONTENT_TYPE_OPTIONS], "nosniff");
+    assert!(asset_body.contains("sendBeacon"));
+
     let (status, headers, html) = call(&app, "GET", &read_url, "", &one_cookie, "").await;
     assert_eq!(status, StatusCode::OK);
     assert_eq!(headers[header::CACHE_CONTROL], "no-store");
     assert_eq!(headers["x-frame-options"], "DENY");
-    assert!(headers["content-security-policy"]
-        .to_str()
-        .unwrap()
-        .contains("script-src 'none'"));
+    let reader_csp = headers["content-security-policy"].to_str().unwrap();
+    assert!(reader_csp.contains("script-src 'self'"));
+    assert!(reader_csp.contains("connect-src 'self'"));
+    assert!(!reader_csp.contains("'unsafe-inline'"));
+    assert!(html.contains("<script src=\"/assets/reader-progress.js\" defer></script>"));
+    assert!(html.contains("id=\"reader-save-status\""));
     assert!(html.contains("id=\"p-4\""));
     assert!(html.contains("&lt;script&gt;dont-run()&lt;/script&gt;"));
     assert!(!html.contains("<script>dont-run()"));
@@ -240,6 +255,60 @@ async fn integration_progress_resume_without_rollback_or_access_leak() {
     let first = place(&csrf, first_version, 1);
     let last = place(&csrf, first_version, 4);
     let middle = place(&csrf, first_version, 2);
+
+    // Auto-save is a separate 204 endpoint but has the same CSRF and session checks.
+    assert_eq!(
+        call(
+            &app,
+            "POST",
+            &autosave_url,
+            &first,
+            &one_cookie,
+            "http://localhost:3000"
+        )
+        .await
+        .0,
+        StatusCode::FORBIDDEN
+    );
+    assert_eq!(
+        call(
+            &app,
+            "POST",
+            &autosave_url,
+            &first,
+            &csrf_cookie,
+            "http://localhost:3000"
+        )
+        .await
+        .0,
+        StatusCode::UNAUTHORIZED
+    );
+    assert_eq!(
+        call(
+            &app,
+            "POST",
+            &autosave_url,
+            &first,
+            &browser,
+            "https://evil.example"
+        )
+        .await
+        .0,
+        StatusCode::FORBIDDEN
+    );
+    assert_eq!(
+        call(
+            &app,
+            "POST",
+            &autosave_url,
+            &place(&csrf, first_version + 1, 1),
+            &browser,
+            "http://localhost:3000"
+        )
+        .await
+        .0,
+        StatusCode::CONFLICT
+    );
 
     // CSRF, origin, session and the public access gate are independent.
     assert_eq!(
@@ -321,6 +390,19 @@ async fn integration_progress_resume_without_rollback_or_access_leak() {
         StatusCode::SEE_OTHER
     );
     assert_eq!(current_position(&pool, one, book_id).await, (chapter_id, 1));
+    let (auto_status, auto_headers, auto_body) = call(
+        &app,
+        "POST",
+        &autosave_url,
+        &first,
+        &browser,
+        "http://localhost:3000",
+    )
+    .await;
+    assert_eq!(auto_status, StatusCode::NO_CONTENT);
+    assert_eq!(auto_headers[header::CACHE_CONTROL], "no-store");
+    assert!(!auto_headers.contains_key(header::LOCATION));
+    assert!(auto_body.is_empty());
 
     // Parallel tabs are serialized by PostgreSQL's upsert condition.
     let (a, b) = tokio::join!(
@@ -364,6 +446,22 @@ async fn integration_progress_resume_without_rollback_or_access_leak() {
     assert!(library.contains(&format!("href=\"/read/{chapter_id}#p-4\"")));
     let (_, _, foreign_library) = call(&app, "GET", "/me/library", "", &two_cookie, "").await;
     assert!(!foreign_library.contains("Private &amp; book"));
+
+    // A delayed autosave must be successful as a no-op and never move back.
+    assert_eq!(
+        call(
+            &app,
+            "POST",
+            &autosave_url,
+            &middle,
+            &browser,
+            "http://localhost:3000"
+        )
+        .await
+        .0,
+        StatusCode::NO_CONTENT
+    );
+    assert_eq!(current_position(&pool, one, book_id).await, (chapter_id, 4));
 
     // Edit creates a new immutable version. Old offsets cannot be re-applied.
     let second_version: i64 = sqlx::query_scalar(
@@ -420,6 +518,20 @@ async fn integration_progress_resume_without_rollback_or_access_leak() {
         StatusCode::SEE_OTHER
     );
     assert_eq!(current_position(&pool, one, book_id).await, (chapter_id, 1));
+
+    assert_eq!(
+        call(
+            &app,
+            "POST",
+            &autosave_url,
+            &last,
+            &browser,
+            "http://localhost:3000"
+        )
+        .await
+        .0,
+        StatusCode::CONFLICT
+    );
 
     // Saving a later chapter supersedes earlier progress in the same book.
     let (next_chapter, next_version) =
