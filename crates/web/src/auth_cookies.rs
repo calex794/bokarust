@@ -181,6 +181,20 @@ mod tests {
     }
 
     #[test]
+    fn private_pages_have_strict_browser_headers() {
+        let response = private_response(StatusCode::OK, &[]);
+        assert_eq!(
+            response.headers()["x-frame-options"],
+            "DENY"
+        );
+        assert!(response.headers()["content-security-policy"]
+            .to_str()
+            .unwrap()
+            .contains("frame-ancestors 'none'"));
+        assert_eq!(response.headers()[header::CACHE_CONTROL], "no-store");
+    }
+
+    #[test]
     fn csrf_requires_single_cookie_and_matching_hidden_token() {
         let config = policy(true);
         let (token, value) = config.csrf_token_cookie();
