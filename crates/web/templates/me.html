@@ -1,0 +1,14 @@
+<section class="section auth-section">
+  <div class="container">
+    <div class="auth-card">
+      <p class="eyebrow">Личный кабинет</p>
+      <h1>Мой кабинет</h1>
+      <p>Вы вошли как <strong><!--DISPLAY_NAME--></strong>.</p>
+      <form method="post" action="/logout">
+        <input type="hidden" name="csrf_token" value="<!--CSRF_TOKEN-->">
+        <button class="button" type="submit">Выйти</button>
+      </form>
+      <p><a href="/catalog">Перейти в каталог</a></p>
+    </div>
+  </div>
+</section>
