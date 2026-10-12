@@ -1,0 +1,21 @@
+<section class="section auth-section">
+  <div class="container">
+    <div class="auth-card">
+      <p class="eyebrow">Личный кабинет</p>
+      <h1>Регистрация</h1>
+      <p class="page-description">Создайте учётную запись для личной библиотеки.</p>
+      <!--AUTH_ERROR-->
+      <form method="post" action="/register" class="auth-form" aria-label="Регистрация">
+        <input type="hidden" name="csrf" value="<!--CSRF_TOKEN-->">
+        <label for="register-name">Имя</label>
+        <input id="register-name" name="name" type="text" autocomplete="nickname" maxlength="80" required>
+        <label for="register-email">Электронная почта</label>
+        <input id="register-email" name="email" type="email" autocomplete="email" maxlength="254" required>
+        <label for="register-password">Пароль (12–128 символов)</label>
+        <input id="register-password" name="password" type="password" autocomplete="new-password" minlength="12" maxlength="128" required>
+        <button class="button" type="submit">Создать аккаунт</button>
+      </form>
+      <p class="auth-card__footer">Уже зарегистрированы? <a href="/login">Войти</a></p>
+    </div>
+  </div>
+</section>

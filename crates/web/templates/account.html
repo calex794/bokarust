@@ -1,0 +1,14 @@
+<section class="section auth-section">
+  <div class="container">
+    <div class="auth-card">
+      <p class="eyebrow">Личный кабинет</p>
+      <h1>Здравствуйте, <!--DISPLAY_NAME--></h1>
+      <p class="page-description">Учётная запись: <!--EMAIL--></p>
+      <p>Личная библиотека и настройки чтения будут подключены отдельно.</p>
+      <form method="post" action="/logout" class="auth-form">
+        <input type="hidden" name="csrf" value="<!--CSRF_TOKEN-->">
+        <button class="button" type="submit">Выйти</button>
+      </form>
+    </div>
+  </div>
+</section>

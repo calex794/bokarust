@@ -1,4 +1,4 @@
-use crate::pages;
+use crate::{auth::{self, AuthState}, pages};
 use axum::{
     extract::{Query, State},
     http::StatusCode,
@@ -13,8 +13,9 @@ use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
 #[derive(Clone)]
-struct AppState {
+pub(crate) struct AppState {
     catalog: Arc<dyn PublicBookRepository>,
+    pub(crate) auth: Option<AuthState>,
 }
 
 #[derive(Deserialize)]
@@ -86,16 +87,40 @@ async fn list_public_books(
     Ok(Json(response))
 }
 
-pub fn router(catalog: Arc<dyn PublicBookRepository>) -> Router {
-    Router::new()
+fn build_router(catalog: Arc<dyn PublicBookRepository>, auth: Option<AuthState>) -> Router {
+    let mut app = Router::new()
         .route("/", get(homepage))
         .route("/catalog", get(catalog_page))
-        .route("/login", get(pages::login))
-        .route("/register", get(pages::register))
         .route("/assets/site.css", get(pages::stylesheet))
         .route("/healthz", get(health))
-        .route("/api/v1/books", get(list_public_books))
-        .with_state(AppState { catalog })
+        .route("/api/v1/books", get(list_public_books));
+    if auth.is_some() {
+        app = app
+            .route("/register", get(auth::get_register).post(auth::post_register))
+            .route("/login", get(auth::get_login).post(auth::post_login))
+            .route("/me", get(auth::get_me))
+            .route("/logout", axum::routing::post(auth::post_logout))
+            .layer(axum::extract::DefaultBodyLimit::max(8192));
+    } else {
+        app = app
+            .route("/login", get(pages::login))
+            .route("/register", get(pages::register));
+    }
+    app.with_state(AppState { catalog, auth })
+}
+
+/// Explicitly unauthenticated, loopback-only development router.
+pub fn router(catalog: Arc<dyn PublicBookRepository>) -> Router {
+    build_router(catalog, None)
+}
+
+/// Production router shares the same PostgreSQL pool for catalog and accounts.
+pub fn router_with_auth(
+    catalog: Arc<dyn PublicBookRepository>,
+    accounts: bokarust_adapters::postgres_accounts::PgAccounts,
+    secure_cookies: bool,
+) -> Router {
+    build_router(catalog, Some(AuthState::new(accounts, secure_cookies)))
 }
 
 #[cfg(test)]

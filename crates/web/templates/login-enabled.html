@@ -1,0 +1,19 @@
+<section class="section auth-section">
+  <div class="container">
+    <div class="auth-card">
+      <p class="eyebrow">Личный кабинет</p>
+      <h1>Вход</h1>
+      <p class="page-description">Введите адрес почты и пароль.</p>
+      <!--AUTH_ERROR-->
+      <form method="post" action="/login" class="auth-form" aria-label="Вход">
+        <input type="hidden" name="csrf" value="<!--CSRF_TOKEN-->">
+        <label for="login-email">Электронная почта</label>
+        <input id="login-email" name="email" type="email" autocomplete="email" maxlength="254" required>
+        <label for="login-password">Пароль</label>
+        <input id="login-password" name="password" type="password" autocomplete="current-password" required>
+        <button class="button" type="submit">Войти</button>
+      </form>
+      <p class="auth-card__footer">Нет учётной записи? <a href="/register">Регистрация</a></p>
+    </div>
+  </div>
+</section>
