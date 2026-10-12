@@ -48,7 +48,11 @@ struct ChapterForm {
 }
 
 pub(crate) fn router(accounts: PgAccounts, author: PgAuthor, cookies: CookiePolicy) -> Router {
-    let state = AuthorState { accounts, author, cookies };
+    let state = AuthorState {
+        accounts,
+        author,
+        cookies,
+    };
     Router::new()
         .route("/me/books", get(my_books))
         .route("/me/books/{book_id}", get(manage_book))
@@ -59,7 +63,10 @@ pub(crate) fn router(accounts: PgAccounts, author: PgAuthor, cookies: CookiePoli
             "/books/{book_id}/chapters/{chapter_id}/edit",
             get(edit_chapter_form),
         )
-        .route("/books/{book_id}/chapters/{chapter_id}", post(update_chapter))
+        .route(
+            "/books/{book_id}/chapters/{chapter_id}",
+            post(update_chapter),
+        )
         .layer(DefaultBodyLimit::max(1024 * 1024))
         .with_state(state)
 }
@@ -79,9 +86,15 @@ fn map_error(error: AuthorError) -> Response {
 }
 
 async fn user_id(state: &AuthorState, headers: &HeaderMap) -> Result<i64, StatusCode> {
-    let token = state.cookies.session_token(headers).ok_or(StatusCode::UNAUTHORIZED)?;
+    let token = state
+        .cookies
+        .session_token(headers)
+        .ok_or(StatusCode::UNAUTHORIZED)?;
     let digest = session_token_digest(&token);
-    state.accounts.active_session_user(&digest).await
+    state
+        .accounts
+        .active_session_user(&digest)
+        .await
         .map_err(|_| StatusCode::SERVICE_UNAVAILABLE)?
         .ok_or(StatusCode::UNAUTHORIZED)
 }
@@ -159,7 +172,10 @@ async fn create_book(
         Err(status) => return fail(status),
     };
     let input = match authoring::new_book(
-        &form.source_identity, &form.target_language, &form.title, &form.command_key,
+        &form.source_identity,
+        &form.target_language,
+        &form.title,
+        &form.command_key,
     ) {
         Ok(input) => input,
         Err(error) => return map_error(error),
