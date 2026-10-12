@@ -131,10 +131,9 @@ pub(crate) fn private_response<T: IntoResponse>(result: T, cookies: &[String]) -
         header::X_CONTENT_TYPE_OPTIONS,
         HeaderValue::from_static("nosniff"),
     );
-    response.headers_mut().insert(
-        "x-frame-options",
-        HeaderValue::from_static("DENY"),
-    );
+    response
+        .headers_mut()
+        .insert("x-frame-options", HeaderValue::from_static("DENY"));
     response.headers_mut().insert(
         "content-security-policy",
         HeaderValue::from_static(
