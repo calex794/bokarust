@@ -1,8 +1,8 @@
 use crate::pages;
 use axum::{
     extract::{Path, Query, State},
-    http::StatusCode,
-    response::Html,
+    http::{header, StatusCode},
+    response::{Html, IntoResponse},
     routing::get,
     Json, Router,
 };
@@ -107,7 +107,7 @@ async fn book_detail_page(
 async fn chapter_reader_page(
     State(state): State<AppState>,
     Path(id): Path<u64>,
-) -> Result<Html<String>, StatusCode> {
+) -> Result<impl IntoResponse, StatusCode> {
     let repository = state.reader.ok_or(StatusCode::NOT_FOUND)?;
     let chapter = repository
         .public_chapter(id)
@@ -116,7 +116,7 @@ async fn chapter_reader_page(
             ReadingError::Unavailable => StatusCode::SERVICE_UNAVAILABLE,
         })?
         .ok_or(StatusCode::NOT_FOUND)?;
-    Ok(pages::reader(&chapter))
+    Ok(([(header::CACHE_CONTROL, "no-store")], pages::reader(&chapter)))
 }
 
 fn catalog_router(
