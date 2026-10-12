@@ -108,8 +108,9 @@ fn place(csrf: &str, version_id: i64, block: i32) -> String {
 
 async fn user(accounts: &PgAccounts, name: &str) -> (i64, String) {
     let hash = hash_password("a sufficiently long test password").expect("Argon2");
+    let email = name.to_ascii_lowercase();
     let id = accounts
-        .insert_user(name, "Читатель", &hash)
+        .insert_user(&email, "Читатель", &hash)
         .await
         .expect("user");
     let token = generate_session_token();
