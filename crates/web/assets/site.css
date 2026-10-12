@@ -205,3 +205,14 @@ button:disabled, input:disabled { cursor: not-allowed; }
 }
 .author-form textarea { resize: vertical; min-height: 220px; white-space: pre-wrap; }
 .author-chapters { padding-left: 25px; line-height: 2.25; overflow-wrap: anywhere; }
+
+
+/* Private reader: at most 200 server-rendered, script-free places. */
+.reading-library { padding-left: 24px; display: grid; gap: 16px; }
+.reading-library li { overflow-wrap: anywhere; }
+.reader-sections { margin-block: 30px; display: grid; gap: 14px; }
+.reader-piece { scroll-margin-top: 22px; border: 1px solid #e1e8e0; border-radius: 12px; background: white; padding: 22px; }
+.reader-piece:target { outline: 2px solid currentColor; }
+.reader-piece__text { margin: 0; font: 19px/1.85 Georgia, "Times New Roman", serif; white-space: pre-wrap; overflow-wrap: anywhere; }
+.reader-save-button { margin-top: 10px; border: 0; background: transparent; color: #27613f; text-decoration: underline; cursor: pointer; font: inherit; }
+.reader-save-button:focus-visible { outline: 2px solid currentColor; outline-offset: 4px; }
