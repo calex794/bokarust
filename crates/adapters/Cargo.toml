@@ -12,6 +12,6 @@ argon2 = "0.5"
 base64 = "0.22"
 rand = "0.8"
 sha2 = "0.10"
-sqlx = { version = "0.8", default-features = false, features = ["runtime-tokio", "tls-rustls", "postgres", "migrate", "macros"] }
+sqlx.workspace = true
 
 tokio.workspace = true

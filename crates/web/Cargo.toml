@@ -8,6 +8,7 @@ axum.workspace = true
 bokarust-application = { path = "../application" }
 bokarust-adapters = { path = "../adapters" }
 serde.workspace = true
+sqlx.workspace = true
 tokio.workspace = true
 
 [dev-dependencies]
