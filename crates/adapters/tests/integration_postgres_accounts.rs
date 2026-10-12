@@ -71,7 +71,8 @@ async fn integration_postgres_users_and_revocable_sessions() {
         .await
         .expect("insert second session");
     sqlx::query(
-        "UPDATE sessions SET expires_at = now() - INTERVAL '1 second' WHERE token_hash = $1",
+        "UPDATE sessions SET created_at = now() - INTERVAL '1 day', \
+         expires_at = now() - INTERVAL '1 second' WHERE token_hash = $1",
     )
     .bind(next_digest.as_slice())
     .execute(accounts.pool())
