@@ -62,12 +62,24 @@ impl PgReadingProgress {
         rows.into_iter()
             .map(|row| {
                 Ok(ContinueReading {
-                    book_id: row.try_get("book_id").map_err(|_| ProgressError::Unavailable)?,
-                    book_title: row.try_get("book_title").map_err(|_| ProgressError::Unavailable)?,
-                    chapter_id: row.try_get("chapter_id").map_err(|_| ProgressError::Unavailable)?,
-                    chapter_no: row.try_get("chapter_no").map_err(|_| ProgressError::Unavailable)?,
-                    chapter_title: row.try_get("chapter_title").map_err(|_| ProgressError::Unavailable)?,
-                    block_index: row.try_get("block_index").map_err(|_| ProgressError::Unavailable)?,
+                    book_id: row
+                        .try_get("book_id")
+                        .map_err(|_| ProgressError::Unavailable)?,
+                    book_title: row
+                        .try_get("book_title")
+                        .map_err(|_| ProgressError::Unavailable)?,
+                    chapter_id: row
+                        .try_get("chapter_id")
+                        .map_err(|_| ProgressError::Unavailable)?,
+                    chapter_no: row
+                        .try_get("chapter_no")
+                        .map_err(|_| ProgressError::Unavailable)?,
+                    chapter_title: row
+                        .try_get("chapter_title")
+                        .map_err(|_| ProgressError::Unavailable)?,
+                    block_index: row
+                        .try_get("block_index")
+                        .map_err(|_| ProgressError::Unavailable)?,
                 })
             })
             .collect()
