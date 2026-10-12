@@ -16,6 +16,20 @@ jobs:
   full-rust:
     runs-on: ubuntu-latest
     timeout-minutes: 35
+    services:
+      postgres:
+        image: postgres:18-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: ci-only-password
+          POSTGRES_DB: bokarust_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d bokarust_ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 15
     steps:
       - uses: actions/checkout@v4
         with:
@@ -34,5 +48,11 @@ jobs:
           tool: nextest
       - name: Full Rust suite with finite deadlines
         run: cargo nextest run --workspace --profile nightly
+      - name: Full PostgreSQL accounts integration tests
+        env:
+          TEST_DATABASE_URL: postgres://postgres:ci-only-password@127.0.0.1:5432/bokarust_ci
+        run: >-
+          cargo nextest run --profile nightly --package bokarust-adapters
+          --run-ignored only -E 'test(integration_)'
       - name: Documentation tests
         run: timeout --signal=TERM --kill-after=5s 180s cargo test --workspace --doc
