@@ -5,3 +5,4 @@ pub mod auth;
 pub mod authoring;
 pub mod catalog;
 pub mod reading;
+pub mod reading_progress;

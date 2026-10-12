@@ -31,6 +31,7 @@ pub struct PublicBookPage {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct PublicChapterPage {
+    pub version_id: u64,
     pub book_id: u64,
     pub book_title: String,
     pub chapter_title: String,

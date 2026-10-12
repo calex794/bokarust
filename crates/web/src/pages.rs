@@ -101,8 +101,9 @@ pub(crate) fn book_detail(book: &PublicBookPage) -> Html<String> {
 
 /// Render Markdown source as escaped, wrapped text until a fully sanitized
 /// Markdown renderer has passed separate security and visual testing.
-pub(crate) fn reader(chapter: &PublicChapterPage) -> Html<String> {
+pub(crate) fn reader(chapter: &PublicChapterPage, chapter_id: u64) -> Html<String> {
     let body = include_str!("../templates/reader.html")
+        .replace("<!--CHAPTER_ID-->", &chapter_id.to_string())
         .replace("<!--BOOK_ID-->", &chapter.book_id.to_string())
         .replace("<!--BOOK_TITLE-->", &escape_html(&chapter.book_title))
         .replace("<!--CHAPTER_TITLE-->", &escape_html(&chapter.chapter_title))
