@@ -50,10 +50,7 @@ impl PgPurchasedReader {
 
     /// Financial history stays visible when reading is blocked or refunded.
     /// No book visibility, lifecycle or current publication pointer is consulted.
-    pub async fn library(
-        &self,
-        user_id: i64,
-    ) -> Result<Vec<PurchasedListItem>, PurchaseReadError> {
+    pub async fn library(&self, user_id: i64) -> Result<Vec<PurchasedListItem>, PurchaseReadError> {
         if user_id <= 0 {
             return Ok(Vec::new());
         }
