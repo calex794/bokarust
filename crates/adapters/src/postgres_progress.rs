@@ -31,8 +31,12 @@ impl PgReadingProgress {
         .map_err(|_| ProgressError::Unavailable)?;
         row.map(|record| {
             Ok(ReadingPlace {
-                block_index: record.try_get("block_index").map_err(|_| ProgressError::Unavailable)?,
-                char_offset: record.try_get("char_offset").map_err(|_| ProgressError::Unavailable)?,
+                block_index: record
+                    .try_get("block_index")
+                    .map_err(|_| ProgressError::Unavailable)?,
+                char_offset: record
+                    .try_get("char_offset")
+                    .map_err(|_| ProgressError::Unavailable)?,
             })
         })
         .transpose()
@@ -101,7 +105,9 @@ impl PgReadingProgress {
         version_id: i64,
         place: ReadingPlace,
     ) -> Result<(), ProgressError> {
-        if user_id <= 0 || chapter_id <= 0 || version_id <= 0
+        if user_id <= 0
+            || chapter_id <= 0
+            || version_id <= 0
             || !(1..=200).contains(&place.block_index)
             || !(0..=100_000).contains(&place.char_offset)
         {
