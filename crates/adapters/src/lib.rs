@@ -9,6 +9,7 @@ pub mod postgres_author;
 mod postgres_author_books;
 mod postgres_author_chapters;
 pub mod postgres_progress;
+pub mod postgres_purchased;
 pub mod postgres_reading;
 
 /// Shared versioned migrations for accounts, sessions, and books.
