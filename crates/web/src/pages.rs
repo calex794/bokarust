@@ -65,18 +65,29 @@ pub(crate) fn catalog(books: &[PublicBookCard]) -> Html<String> {
 pub(crate) fn book_detail(book: &PublicBookPage) -> Html<String> {
     let mut chapter_links = String::new();
     if book.chapters.is_empty() {
-        chapter_links
-            .push_str("<p class=\"empty-state\">Пока нет опубликованных глав.</p>");
+        chapter_links.push_str("<p class=\"empty-state\">Пока нет опубликованных глав.</p>");
     } else {
         for chapter in &book.chapters {
             write!(
                 chapter_links,
                 "<li><a href=\"{}{}\">Глава {}. {}</a>{}</li>",
-                if chapter.is_paid { "/chapters/" } else { "/reader/" },
-                if chapter.is_paid { format!("{}/buy", chapter.id) } else { chapter.id.to_string() },
+                if chapter.is_paid {
+                    "/chapters/"
+                } else {
+                    "/reader/"
+                },
+                if chapter.is_paid {
+                    format!("{}/buy", chapter.id)
+                } else {
+                    chapter.id.to_string()
+                },
                 chapter.number,
                 escape_html(&chapter.title),
-                if chapter.is_paid { " · платная" } else { "" }
+                if chapter.is_paid {
+                    " · платная"
+                } else {
+                    ""
+                }
             )
             .expect("writing into String cannot fail");
         }
