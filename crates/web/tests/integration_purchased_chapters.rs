@@ -76,8 +76,7 @@ async fn integration_purchased_version_survives_hide_and_edit_but_not_hold_or_re
     let suffix = generate_session_token();
     let (owner, owner_cookie) =
         session(&accounts, &format!("buyer-{suffix}@example.invalid")).await;
-    let (_, stranger_cookie) =
-        session(&accounts, &format!("other-{suffix}@example.invalid")).await;
+    let (_, stranger_cookie) = session(&accounts, &format!("other-{suffix}@example.invalid")).await;
     let book: i64 = sqlx::query_scalar(
         "INSERT INTO books (source_identity, target_language, title, visibility) \
          VALUES ($1, 'ru', '<Наша & книга>', 'public') RETURNING id",
@@ -118,7 +117,10 @@ async fn integration_purchased_version_survives_hide_and_edit_but_not_hold_or_re
     );
     let owned_url = format!("/me/purchases/{chapter}");
     let list_url = "/me/purchases";
-    assert_eq!(call(&app, "GET", &owned_url, "",).await.0, StatusCode::SEE_OTHER);
+    assert_eq!(
+        call(&app, "GET", &owned_url, "",).await.0,
+        StatusCode::SEE_OTHER
+    );
     assert_eq!(
         call(&app, "GET", &owned_url, &owner_cookie).await.0,
         StatusCode::NOT_FOUND
@@ -128,7 +130,9 @@ async fn integration_purchased_version_survives_hide_and_edit_but_not_hold_or_re
         StatusCode::NOT_FOUND
     );
     assert_eq!(
-        call(&app, "GET", &format!("/read/{chapter}"), &owner_cookie).await.0,
+        call(&app, "GET", &format!("/read/{chapter}"), &owner_cookie)
+            .await
+            .0,
         StatusCode::NOT_FOUND
     );
     assert_eq!(
@@ -190,9 +194,14 @@ async fn integration_purchased_version_survives_hide_and_edit_but_not_hold_or_re
     let (status, headers, html) = call(&app, "GET", &owned_url, &owner_cookie).await;
     assert_eq!(status, StatusCode::OK);
     assert_eq!(headers[header::CACHE_CONTROL], "no-store");
-    assert!(headers["x-robots-tag"].to_str().unwrap().contains("noindex"));
+    assert!(headers["x-robots-tag"]
+        .to_str()
+        .unwrap()
+        .contains("noindex"));
     assert!(headers["content-security-policy"]
-        .to_str().unwrap().contains("script-src 'none'"));
+        .to_str()
+        .unwrap()
+        .contains("script-src 'none'"));
     assert!(html.contains("<h1>"));
     assert!(html.contains("<strong>"));
     assert!(html.contains("&lt;script&gt;untrusted()&lt;/script&gt;"));
@@ -227,8 +236,10 @@ async fn integration_purchased_version_survives_hide_and_edit_but_not_hold_or_re
     let (_, _, old_text) = call(&app, "GET", &owned_url, &owner_cookie).await;
     assert!(old_text.contains("Версия-1"));
     assert!(!old_text.contains("Версия-2"));
-    assert_eq!(call(&app, "GET", &format!("/reader/{chapter}"), "").await.0,
-        StatusCode::NOT_FOUND);
+    assert_eq!(
+        call(&app, "GET", &format!("/reader/{chapter}"), "").await.0,
+        StatusCode::NOT_FOUND
+    );
     // Book admin hold is the provisional hard-block mapping for this slice.
     sqlx::query("UPDATE books SET admin_hold=true WHERE id=$1")
         .bind(book)
@@ -257,18 +268,26 @@ async fn integration_purchased_version_survives_hide_and_edit_but_not_hold_or_re
     .execute(&pool)
     .await
     .unwrap();
-    assert_eq!(call(&app, "GET", &owned_url, &owner_cookie).await.0,
-        StatusCode::NOT_FOUND);
+    assert_eq!(
+        call(&app, "GET", &owned_url, &owner_cookie).await.0,
+        StatusCode::NOT_FOUND
+    );
     let (_, _, revoked) = call(&app, "GET", list_url, &owner_cookie).await;
     assert!(revoked.contains("Право чтения отозвано"));
     assert!(!revoked.contains(&format!("href=\"{owned_url}\"")));
     let stored_version: i64 =
         sqlx::query_scalar("SELECT version_id FROM chapter_purchase_facts WHERE id=$1")
-            .bind(purchase).fetch_one(&pool).await.unwrap();
+            .bind(purchase)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
     assert_eq!(stored_version, old_version);
     assert!(
         sqlx::query("DELETE FROM books WHERE id=$1")
-            .bind(book).execute(&pool).await.is_err(),
+            .bind(book)
+            .execute(&pool)
+            .await
+            .is_err(),
         "physical deletion cannot cascade into sold versions"
     );
 }
