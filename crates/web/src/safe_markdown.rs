@@ -93,6 +93,12 @@ fn inline(out: &mut String, block: &str, line: &str, base: usize, depth: u8) {
             }
             let mut consumed = false;
             for (marker, tag) in [("**", "strong"), ("__", "strong"), ("*", "em"), ("_", "em")] {
+                // Markdown underscores inside ordinary words are not formatting.
+                if marker.starts_with('_')
+                    && line[..i].chars().last().is_some_and(char::is_alphanumeric)
+                {
+                    continue;
+                }
                 if rest.starts_with(marker)
                     && !(marker.len() == 1 && rest.starts_with(&marker.repeat(2)))
                 {
@@ -250,6 +256,8 @@ mod tests {
         assert!(result.contains("<code>"));
         assert!(render("- первый\n- второй\n\n1. один\n2. два").contains("<ol><li>"));
         assert!(render("> цитата").contains("<blockquote>"));
+        assert!(render("NEW_PUBLISHED_TEXT").contains("NEW_PUBLISHED_TEXT"));
+        assert!(render("_курсив_").contains("<em>"));
     }
 
     #[test]
