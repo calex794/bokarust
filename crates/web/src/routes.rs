@@ -1,7 +1,7 @@
 use crate::pages;
 use axum::{
     extract::{Path, Query, State},
-    http::{header, StatusCode},
+    http::StatusCode,
     response::{Html, IntoResponse},
     routing::get,
     Json, Router,
@@ -117,7 +117,10 @@ async fn chapter_reader_page(
         })?
         .ok_or(StatusCode::NOT_FOUND)?;
     Ok((
-        [(header::CACHE_CONTROL, "no-store")],
+        [
+            ("cache-control", "no-store"),
+            ("content-security-policy", "default-src 'none'; script-src 'none'; style-src 'self'; img-src 'self'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'"),
+        ],
         pages::reader(&chapter, id),
     ))
 }

@@ -224,3 +224,23 @@ button:disabled, input:disabled { cursor: not-allowed; }
 .chapter-navigation { display: flex; flex-wrap: wrap; gap: 22px; justify-content: space-between; margin-block: 18px; }
 .chapter-navigation a { text-decoration: underline; }
 .chapter-navigation a:focus-visible { outline: 2px solid currentColor; outline-offset: 4px; }
+
+/* Server-generated restricted Markdown; author HTML is always escaped. */
+.reader-markdown { white-space: normal; overflow-wrap: anywhere; }
+.reader-markdown p { margin: 0 0 1em; }
+.reader-markdown p:last-child { margin-bottom: 0; }
+.reader-markdown h1, .reader-markdown h2, .reader-markdown h3,
+.reader-markdown h4, .reader-markdown h5, .reader-markdown h6 {
+  line-height: 1.35; margin: 1.3em 0 0.55em; font-family: inherit; overflow-wrap: anywhere;
+}
+.reader-markdown h1:first-child, .reader-markdown h2:first-child,
+.reader-markdown h3:first-child { margin-top: 0; }
+.reader-markdown ul, .reader-markdown ol { padding-left: 1.7em; margin: 0 0 1em; }
+.reader-markdown li { margin: 0.28em 0; }
+.reader-markdown blockquote { border-left: 3px solid #b9d1bf; margin: 1em 0; padding: 0 1.15em; }
+.reader-markdown a { color: #27613f; text-decoration: underline; }
+.reader-markdown a:focus-visible { outline: 2px solid currentColor; outline-offset: 3px; }
+.reader-markdown pre { white-space: pre-wrap; background: #f1f5ef; padding: 0.8em; border-radius: 8px; }
+.reader-markdown code { font-family: ui-monospace, monospace; font-size: 0.88em; overflow-wrap: anywhere; }
+.reader-piece__text.reader-markdown { white-space: normal; }
+.chapter-content.reader-markdown { white-space: normal; }

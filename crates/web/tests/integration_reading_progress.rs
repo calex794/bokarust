@@ -230,6 +230,9 @@ async fn integration_progress_resume_without_rollback_or_access_leak() {
         call(&app, "GET", &format!("/reader/{chapter_id}"), "", "", "").await;
     assert_eq!(status, StatusCode::OK);
     assert_eq!(public_headers[header::CACHE_CONTROL], "no-store");
+    let public_csp = public_headers["content-security-policy"].to_str().unwrap();
+    assert!(public_csp.contains("script-src 'none'"));
+    assert!(!public_csp.contains("'unsafe-inline'"));
     assert!(public_html.contains(&format!("href=\"/read/{chapter_id}\"")));
     assert!(!public_html.contains("name=\"csrf_token\""));
 
@@ -605,8 +608,13 @@ async fn integration_progress_resume_without_rollback_or_access_leak() {
     );
 
     // Saving a later chapter supersedes earlier progress in the same book.
-    let (next_chapter, next_version) =
-        chapter(&pool, book_id, 2, "Следующая глава", "one\n\ntwo").await;
+    let (next_chapter, next_version) = chapter(
+        &pool,
+        book_id,
+        2,
+        "Следующая глава",
+        "# Заголовок\n\n**Жирный** и [ссылка](https://example.org/?x=1&y=2)          [плохая](javascript:alert(1)) <script>alert(2)</script>",
+    ).await;
     let (_, _, first_with_next) = call(&app, "GET", &read_url, "", &browser, "").await;
     assert!(first_with_next.contains(&format!("href=\"/read/{next_chapter}\"")));
     let (_, _, next_with_prev) = call(
@@ -619,6 +627,20 @@ async fn integration_progress_resume_without_rollback_or_access_leak() {
     )
     .await;
     assert!(next_with_prev.contains(&format!("href=\"/read/{chapter_id}\"")));
+    // Markdown is formatted in both routes, with raw HTML escaped and
+    // dangerous protocols displayed only as text (no injected links).
+    assert!(next_with_prev.contains("<h1><span data-md-start=\"2\">Заголовок</span></h1>"));
+    assert!(next_with_prev.contains("<strong>"));
+    assert!(next_with_prev.contains("href=\"https://example.org/?x=1&amp;y=2\""));
+    assert!(!next_with_prev.contains("href=\"javascript:"));
+    assert!(!next_with_prev.contains("<script>alert(2)</script>"));
+    assert!(next_with_prev.contains("&lt;script&gt;alert(2)&lt;/script&gt;"));
+
+    let (_, _, public_markdown) =
+        call(&app, "GET", &format!("/reader/{next_chapter}"), "", "", "").await;
+    assert!(public_markdown.contains("<h1>"));
+    assert!(public_markdown.contains("<strong>"));
+    assert!(!public_markdown.contains("<script>alert(2)</script>"));
     let (_, _, public_first) =
         call(&app, "GET", &format!("/reader/{chapter_id}"), "", "", "").await;
     assert!(public_first.contains(&format!("href=\"/reader/{next_chapter}\"")));

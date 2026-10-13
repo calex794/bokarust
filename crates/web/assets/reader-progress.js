@@ -36,11 +36,51 @@
     return a.block > b.block || (a.block === b.block && a.offset > b.offset);
   }
 
-  function textNode(index) {
+  // Formatted Markdown has multiple text nodes. Each visible server-rendered
+  // source span carries its UTF-16 offset in the immutable Markdown version.
+  function textPart(index) {
     const element = pieces[index - 1]?.querySelector(".reader-piece__text");
-    const node = element?.firstChild;
-    if (!node || node.nodeType !== 3) return null;
-    return { element, node };
+    return element ? { element } : null;
+  }
+
+  function sourceOffset(part, node, caretOffset) {
+    if (!node || node.nodeType !== 3 || !Number.isInteger(caretOffset)) return null;
+    if (typeof part.element.contains === "function" && !part.element.contains(node)) return null;
+    const mark = node.parentElement?.closest?.("[data-md-start]");
+    if (mark) {
+      const start = Number(mark.getAttribute("data-md-start"));
+      if (!Number.isSafeInteger(start) || start < 0) return null;
+      return start + Math.max(0, Math.min(caretOffset, node.textContent.length));
+    }
+    // Old flat text fixtures and pre-Markdown pages keep their exact offsets.
+    if (node === part.element.firstChild) {
+      return Math.max(0, Math.min(caretOffset, node.textContent.length));
+    }
+    return null;
+  }
+
+  function restoredTextPosition(part, offset) {
+    const spans = part.element.querySelectorAll?.("[data-md-start]");
+    if (spans?.length) {
+      let choice = null;
+      let closest = Number.MAX_SAFE_INTEGER;
+      for (const span of spans) {
+        const node = span.firstChild;
+        const start = Number(span.getAttribute("data-md-start"));
+        if (!node || node.nodeType !== 3 || !Number.isSafeInteger(start)) continue;
+        const within = Math.max(0, Math.min(node.textContent.length, offset - start));
+        const distance = Math.abs(start + within - offset);
+        if (distance < closest) {
+          choice = { node, within };
+          closest = distance;
+          if (distance === 0) break;
+        }
+      }
+      return choice;
+    }
+    const node = part.element.firstChild;
+    if (node?.nodeType !== 3) return null;
+    return { node, within: Math.min(offset, node.textContent.length) };
   }
 
   // Binary search costs O(log N), where N never exceeds 200.
@@ -63,7 +103,7 @@
 
   function visiblePlace() {
     const block = visibleBlock();
-    const part = textNode(block);
+    const part = textPart(block);
     if (!part) return { block, offset: 0 };
     const rect = part.element.getBoundingClientRect();
     const x = rect.left + Math.min(Math.max(8, rect.width / 2), Math.max(8, rect.width - 1));
@@ -79,9 +119,9 @@
       node = range?.startContainer;
       offset = range?.startOffset;
     }
-    // Never treat positions in navigation, buttons or other blocks as text.
-    if (node !== part.node || !Number.isInteger(offset)) return { block, offset: 0 };
-    return { block, offset: Math.max(0, Math.min(offset, part.node.textContent.length)) };
+    // Never trust a caret outside the current text block.
+    const mapped = sourceOffset(part, node, offset);
+    return { block, offset: mapped ?? 0 };
   }
 
   // Only restore a bookmarked fragment, not an unrelated deep link or new visit.
@@ -89,10 +129,12 @@
     if (!saved || initialBlock < 1 || initialOffset < 1 ||
         window.location.hash !== "#p-" + initialBlock ||
         typeof document.createRange !== "function") return;
-    const part = textNode(initialBlock);
+    const part = textPart(initialBlock);
     if (!part) return;
+    const target = restoredTextPosition(part, initialOffset);
+    if (!target) return;
     const range = document.createRange();
-    range.setStart(part.node, Math.min(initialOffset, part.node.textContent.length));
+    range.setStart(target.node, target.within);
     range.collapse(true);
     const rect = range.getBoundingClientRect();
     if (rect && Number.isFinite(rect.top)) {

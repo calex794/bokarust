@@ -12,20 +12,7 @@ pub(crate) struct PublicBookCard {
     pub language: String,
 }
 
-pub(crate) fn escape_html(value: &str) -> String {
-    let mut escaped = String::with_capacity(value.len());
-    for ch in value.chars() {
-        match ch {
-            '&' => escaped.push_str("&amp;"),
-            '<' => escaped.push_str("&lt;"),
-            '>' => escaped.push_str("&gt;"),
-            '"' => escaped.push_str("&quot;"),
-            '\'' => escaped.push_str("&#39;"),
-            _ => escaped.push(ch),
-        }
-    }
-    escaped
-}
+pub(crate) use crate::html_escape::escape_html;
 
 pub(crate) fn layout(title: &str, description: &str, content: &str) -> Html<String> {
     let shell = include_str!("../templates/layout.html");
@@ -117,8 +104,7 @@ pub(crate) fn chapter_navigation(chapter: &PublicChapterPage, private: bool) -> 
     }
 }
 
-/// Render Markdown source as escaped, wrapped text until a fully sanitized
-/// Markdown renderer has passed separate security and visual testing.
+/// Render a restricted, escaped Markdown subset without embedding raw HTML.
 pub(crate) fn reader(chapter: &PublicChapterPage, chapter_id: u64) -> Html<String> {
     let body = include_str!("../templates/reader.html")
         .replace("<!--CHAPTER_ID-->", &chapter_id.to_string())
@@ -132,7 +118,10 @@ pub(crate) fn reader(chapter: &PublicChapterPage, chapter_id: u64) -> Html<Strin
         .replace("<!--CHAPTER_VERSION-->", &chapter.version_no.to_string())
         .replace(
             "<!--CHAPTER_CONTENT-->",
-            &escape_html(&chapter.body_markdown),
+            &crate::safe_markdown::render(
+                &bokarust_application::reading_progress::reader_blocks(&chapter.body_markdown)
+                    .join("\n\n"),
+            ),
         );
     layout(&chapter.chapter_title, "Опубликованный текст главы.", &body)
 }
