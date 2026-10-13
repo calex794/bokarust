@@ -489,7 +489,7 @@ async fn integration_checkout_wallet_posting_and_replays_are_one_transaction() {
         (120, first_version, -120)
     );
     let ledger_total: i64 = sqlx::query_scalar(
-        "SELECT coalesce(sum(delta_minor),0) FROM reader_wallet_entries WHERE user_id=$1",
+        "SELECT coalesce(sum(delta_minor),0)::bigint FROM reader_wallet_entries WHERE user_id=$1",
     )
     .bind(buyer)
     .fetch_one(&pool)
