@@ -35,17 +35,27 @@ fn safe_link(url: &str) -> bool {
     (url.starts_with('/') && !url.starts_with("//")) || url.starts_with('#')
 }
 
+/// Avoid quadratic searches in malformed user Markdown, even for 50K text.
+fn short_prefix(text: &str) -> &str {
+    let mut len = text.len().min(2048);
+    while !text.is_char_boundary(len) {
+        len -= 1;
+    }
+    &text[..len]
+}
+
 /// Limited depth and no raw HTML keep the parser bounded and non-executable.
 fn inline(out: &mut String, block: &str, line: &str, base: usize, depth: u8) {
     let mut i = 0;
     let mut plain = 0;
     while i < line.len() {
         let rest = &line[i..];
+        let candidate = short_prefix(rest);
         if depth < 6 {
             // Links are explicit and protocol restricted. Images are not parsed.
             if rest.starts_with('[') && (i == 0 || !line[..i].ends_with('!')) {
-                if let Some(label_end) = rest.find("](") {
-                    if let Some(end) = rest[label_end + 2..].find(')') {
+                if let Some(label_end) = candidate.find("](") {
+                    if let Some(end) = candidate[label_end + 2..].find(')') {
                         let label = &rest[1..label_end];
                         let href = &rest[label_end + 2..label_end + 2 + end];
                         if !label.is_empty() && safe_link(href) {
@@ -63,7 +73,7 @@ fn inline(out: &mut String, block: &str, line: &str, base: usize, depth: u8) {
             }
             // Inline code is literal; nested markup is never interpreted here.
             if rest.starts_with('\u{60}') {
-                if let Some(end) = rest[1..].find('\u{60}') {
+                if let Some(end) = candidate[1..].find('\u{60}') {
                     text_segment(out, block, base + plain, &line[plain..i]);
                     out.push_str("<code>");
                     text_segment(out, block, base + i + 1, &rest[1..1 + end]);
@@ -78,7 +88,7 @@ fn inline(out: &mut String, block: &str, line: &str, base: usize, depth: u8) {
                 if rest.starts_with(marker)
                     && !(marker.len() == 1 && rest.starts_with(&marker.repeat(2)))
                 {
-                    if let Some(end) = rest[marker.len()..].find(marker) {
+                    if let Some(end) = candidate[marker.len()..].find(marker) {
                         if end > 0 {
                             text_segment(out, block, base + plain, &line[plain..i]);
                             write!(out, "<{tag}>").expect("writing into String");
