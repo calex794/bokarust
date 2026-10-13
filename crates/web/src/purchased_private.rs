@@ -12,8 +12,7 @@ use axum::{
     Router,
 };
 use bokarust_adapters::{
-    account_security::session_token_digest,
-    postgres_accounts::PgAccounts,
+    account_security::session_token_digest, postgres_accounts::PgAccounts,
     postgres_purchased::PgPurchasedReader,
 };
 
