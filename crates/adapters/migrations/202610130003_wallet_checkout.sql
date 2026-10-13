@@ -6,6 +6,10 @@ CREATE TABLE reader_wallet_accounts (
     currency CHAR(3) NOT NULL DEFAULT 'RUB' CHECK (currency = 'RUB')
 );
 
+-- A journal debit can only reference a purchase of the same wallet owner.
+ALTER TABLE chapter_purchase_facts
+    ADD CONSTRAINT chapter_purchase_owner_pair UNIQUE (id, user_id);
+
 -- The immutable money journal is independent from author payout accounting.
 -- Credits must originate from a separately verified funding process (not implemented).
 CREATE TABLE reader_wallet_entries (
@@ -15,7 +19,9 @@ CREATE TABLE reader_wallet_entries (
     delta_minor BIGINT NOT NULL CHECK (delta_minor <> 0),
     balance_after_minor BIGINT NOT NULL CHECK (balance_after_minor >= 0),
     reference TEXT NOT NULL UNIQUE CHECK (char_length(reference) BETWEEN 8 AND 160),
-    purchase_id BIGINT UNIQUE REFERENCES chapter_purchase_facts(id) ON DELETE RESTRICT,
+    purchase_id BIGINT,
+    FOREIGN KEY (purchase_id, user_id)
+        REFERENCES chapter_purchase_facts(id, user_id) ON DELETE RESTRICT,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     CONSTRAINT wallet_entry_direction CHECK (
         (kind = 'chapter_purchase' AND delta_minor < 0 AND purchase_id IS NOT NULL)
