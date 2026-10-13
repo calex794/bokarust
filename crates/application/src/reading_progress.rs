@@ -4,7 +4,10 @@
 /// At most 200 stable anchors per immutable chapter version. Splitting and
 /// grouping is deterministic and does not depend on viewport dimensions.
 pub fn reader_blocks(text: &str) -> Vec<String> {
-    let paragraphs: Vec<&str> = text.split("\n\n").collect();
+    // HTML parsers normalize CRLF and bare CR. Match the browser DOM text
+    // before computing or validating its UTF-16 character offsets.
+    let normalized = text.replace("\r\n", "\n").replace('\r', "\n");
+    let paragraphs: Vec<&str> = normalized.split("\n\n").collect();
     let group_size = paragraphs.len().div_ceil(200);
     paragraphs
         .chunks(group_size)
@@ -78,6 +81,11 @@ mod tests {
         let blocks = reader_blocks(&source);
         assert_eq!(blocks.len(), 200);
         assert_eq!(blocks.join("\n\n"), source);
+    }
+
+    #[test]
+    fn imported_windows_line_endings_match_browser_text() {
+        assert_eq!(reader_blocks("A\r\n\r\nB\rC"), vec!["A", "B\nC"]);
     }
 
     #[test]
