@@ -19,10 +19,7 @@ pub struct ReadingPlace {
     pub char_offset: i32,
 }
 
-pub fn valid_text_place(
-    place: ReadingPlace,
-    blocks: &[String],
-) -> Result<(), ProgressError> {
+pub fn valid_text_place(place: ReadingPlace, blocks: &[String]) -> Result<(), ProgressError> {
     valid_place(place.block_index, blocks.len())?;
     let text = &blocks[(place.block_index - 1) as usize];
     if place.char_offset < 0
@@ -87,10 +84,44 @@ mod tests {
     fn position_uses_utf16_units_and_rejects_outside_text() {
         let text = reader_blocks("т😀a\n\nSecond");
         assert_eq!(text[0].encode_utf16().count(), 4);
-        assert!(valid_text_place(ReadingPlace { block_index: 1, char_offset: 4 }, &text).is_ok());
-        assert_eq!(valid_text_place(ReadingPlace { block_index: 1, char_offset: 5 }, &text), Err(ProgressError::Invalid));
-        assert_eq!(valid_text_place(ReadingPlace { block_index: 0, char_offset: 0 }, &text), Err(ProgressError::Invalid));
-        assert_eq!(valid_text_place(ReadingPlace { block_index: 1, char_offset: -1 }, &text), Err(ProgressError::Invalid));
+        assert!(valid_text_place(
+            ReadingPlace {
+                block_index: 1,
+                char_offset: 4
+            },
+            &text
+        )
+        .is_ok());
+        assert_eq!(
+            valid_text_place(
+                ReadingPlace {
+                    block_index: 1,
+                    char_offset: 5
+                },
+                &text
+            ),
+            Err(ProgressError::Invalid)
+        );
+        assert_eq!(
+            valid_text_place(
+                ReadingPlace {
+                    block_index: 0,
+                    char_offset: 0
+                },
+                &text
+            ),
+            Err(ProgressError::Invalid)
+        );
+        assert_eq!(
+            valid_text_place(
+                ReadingPlace {
+                    block_index: 1,
+                    char_offset: -1
+                },
+                &text
+            ),
+            Err(ProgressError::Invalid)
+        );
     }
 
     #[test]
