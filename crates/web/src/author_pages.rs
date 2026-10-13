@@ -44,7 +44,10 @@ pub(crate) fn manage_book(book: &OwnedBook, chapters: &[OwnedChapterSummary]) ->
     for chapter in chapters {
         let public_link = match chapter.access {
             ChapterAccess::Free => format!(" <a href=\"/reader/{}\">Читать</a>", chapter.id),
-            ChapterAccess::Paid => format!(" (платная · <a href=\"/chapters/{}/buy\">Купить</a>)", chapter.id),
+            ChapterAccess::Paid => format!(
+                " (платная · <a href=\"/chapters/{}/buy\">Купить</a>)",
+                chapter.id
+            ),
         };
         write!(
             entries,
