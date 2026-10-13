@@ -5,12 +5,12 @@ mod auth;
 mod auth_cookies;
 mod author;
 mod author_pages;
-mod pages;
 mod html_escape;
-mod safe_markdown;
+mod pages;
 mod password_jobs;
 mod reading_pages;
 mod reading_private;
 mod routes;
+mod safe_markdown;
 
 pub use routes::{router, router_with_auth, router_with_auth_and_reading};
