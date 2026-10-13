@@ -230,6 +230,9 @@ async fn integration_progress_resume_without_rollback_or_access_leak() {
         call(&app, "GET", &format!("/reader/{chapter_id}"), "", "", "").await;
     assert_eq!(status, StatusCode::OK);
     assert_eq!(public_headers[header::CACHE_CONTROL], "no-store");
+    let public_csp = public_headers["content-security-policy"].to_str().unwrap();
+    assert!(public_csp.contains("script-src 'none'"));
+    assert!(!public_csp.contains("'unsafe-inline'"));
     assert!(public_html.contains(&format!("href=\"/read/{chapter_id}\"")));
     assert!(!public_html.contains("name=\"csrf_token\""));
 
