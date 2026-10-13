@@ -526,9 +526,11 @@ async fn integration_checkout_parallel_commands_and_failure_rollback() {
     fund_fixture(&pool, user, 150, &format!("verified-race:{suffix}")).await;
     let repo = bokarust_adapters::postgres_checkout::PgChapterCheckout::new(pool.clone());
 
+    let first_key = generate_session_token();
+    let second_key = generate_session_token();
     let (ra, rb) = tokio::join!(
-        repo.purchase(user, a, version_a, 100, &generate_session_token()),
-        repo.purchase(user, b, version_b, 100, &generate_session_token()),
+        repo.purchase(user, a, version_a, 100, &first_key),
+        repo.purchase(user, b, version_b, 100, &second_key),
     );
     assert_eq!(ra.is_ok() as u8 + rb.is_ok() as u8, 1);
     assert_eq!(balance(&pool, user).await, 50);
