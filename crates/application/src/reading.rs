@@ -1,4 +1,4 @@
-//! Public reader ports. In BKR-86 all non-public and paid content is denied.
+//! Public chapter text is free-only; public book metadata can name paid chapters.
 use async_trait::async_trait;
 use std::{error::Error, fmt};
 
@@ -19,6 +19,8 @@ pub struct PublicChapterLink {
     pub id: u64,
     pub number: i32,
     pub title: String,
+    pub is_paid: bool,
+    pub price_minor: i64,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]

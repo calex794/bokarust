@@ -175,6 +175,13 @@ pub fn router_with_auth_and_reading(
             origin: public_origin.clone(),
         },
     );
+    let checkout = crate::checkout_private::router(
+        accounts.clone(),
+        crate::auth_cookies::CookiePolicy {
+            secure,
+            origin: public_origin.clone(),
+        },
+    );
     let purchased = crate::purchased_private::router(
         accounts.clone(),
         crate::auth_cookies::CookiePolicy {
@@ -195,6 +202,7 @@ pub fn router_with_auth_and_reading(
         .merge(author)
         .merge(reading)
         .merge(purchased)
+        .merge(checkout)
 }
 
 #[cfg(test)]

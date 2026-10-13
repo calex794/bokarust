@@ -213,9 +213,13 @@ async fn integration_reading_deny_private_and_serve_published() {
     assert_eq!(status, StatusCode::OK);
     assert!(detail.contains("&lt;Book &amp; title&gt;"));
     assert!(detail.contains(&format!("href=\"/reader/{live}\"")));
+    // A released paid chapter's *title* is public purchase metadata; its
+    // text remains hidden from /reader/{id} and from the HTML list.
+    assert!(detail.contains(&format!("href=\"/chapters/{paid}/buy\"")));
+    assert!(detail.contains("SECRET_PAID"));
+    assert!(!detail.contains(&format!("PRIVATE_TEXT_{paid}")));
     for name in [
         "SECRET_DRAFT",
-        "SECRET_PAID",
         "SECRET_HOLD",
         "SECRET_DELETED",
         "SECRET_FUTURE",

@@ -5,6 +5,8 @@ mod auth;
 mod auth_cookies;
 mod author;
 mod author_pages;
+mod checkout_pages;
+mod checkout_private;
 mod html_escape;
 mod pages;
 mod password_jobs;

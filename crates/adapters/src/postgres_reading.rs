@@ -49,12 +49,12 @@ impl PublicReadingRepository for PgReader {
         };
         // Recheck the parent state in the chapter query, not just in the first query.
         let rows = sqlx::query(
-            "SELECT c.id, c.chapter_no, c.title FROM chapters AS c \
+            "SELECT c.id, c.chapter_no, c.title, c.access_level, c.price_amount FROM chapters AS c \
              JOIN books AS b ON b.id = c.book_id \
              JOIN chapter_publications AS p ON p.chapter_id = c.id \
              JOIN chapter_versions AS v ON v.id = p.version_id AND v.chapter_id = c.id \
              WHERE c.book_id = $1 AND b.visibility = 'public' AND NOT b.admin_hold \
-               AND NOT b.is_deleted AND c.visibility = 'public' AND c.access_level = 'free' \
+               AND NOT b.is_deleted AND c.visibility = 'public' \
                AND NOT c.admin_hold AND NOT c.is_deleted \
                AND (c.reader_released_at IS NULL OR c.reader_released_at <= now()) \
              ORDER BY c.chapter_no, c.id LIMIT 200",
@@ -70,6 +70,8 @@ impl PublicReadingRepository for PgReader {
                     id: positive_id(row.try_get("id").map_err(map_db)?)?,
                     number: row.try_get("chapter_no").map_err(map_db)?,
                     title: row.try_get("title").map_err(map_db)?,
+                    is_paid: row.try_get::<String, _>("access_level").map_err(map_db)? == "paid",
+                    price_minor: row.try_get("price_amount").map_err(map_db)?,
                 })
             })
             .collect::<Result<Vec<_>, ReadingError>>()?;

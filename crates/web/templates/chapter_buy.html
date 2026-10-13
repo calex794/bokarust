@@ -1,0 +1,19 @@
+<section class="section auth-section">
+  <div class="container author-width">
+    <p class="eyebrow">Платная глава</p>
+    <p><a href="/me/purchases">← Мои приобретённые главы</a></p>
+    <h1><!--CHAPTER_TITLE--></h1>
+    <p><!--BOOK_TITLE--></p>
+    <p>Цена закреплённой редакции: <strong><!--PRICE--></strong>.</p>
+    <p>Доступно на внутреннем кошельке: <!--BALANCE-->.</p>
+    <p>Новая публикация не заменит купленную редакцию. Пополнение кошелька извне пока не подключено.</p>
+    <form method="post" action="/chapters/<!--CHAPTER_ID-->/buy">
+      <input type="hidden" name="csrf_token" value="<!--CSRF-->">
+      <input type="hidden" name="command_key" value="<!--COMMAND_KEY-->">
+      <input type="hidden" name="expected_version_id" value="<!--CHAPTER_VERSION-->">
+      <input type="hidden" name="expected_price_minor" value="<!--PRICE_MINOR-->">
+      <button class="button" type="submit">Купить главу с кошелька</button>
+    </form>
+    <p>Если цена или редакция изменится до оплаты, операция не будет проведена.</p>
+  </div>
+</section>
