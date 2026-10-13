@@ -53,11 +53,11 @@ pub(crate) fn tracked_reader(
         write!(
             blocks,
             "<section id=\"p-{position}\" class=\"reader-piece\">\
-             <pre class=\"reader-piece__text\">{}</pre>\
+             <div class=\"reader-piece__text reader-markdown\">{}</div>\
              <button type=\"submit\" form=\"save-position\" name=\"block_index\" \
              value=\"{position}\" class=\"reader-save-button\">Запомнить место здесь</button>\
              </section>",
-            escape_html(block),
+            crate::safe_markdown::render(block),
         )
         .expect("write to String");
     }
