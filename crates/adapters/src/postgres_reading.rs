@@ -92,7 +92,23 @@ impl PublicReadingRepository for PgReader {
         // Never rely on filtering navigation links, the homepage or an earlier request.
         let row = sqlx::query(
             "SELECT b.id AS book_id, b.title AS book_title, \
-                    c.title AS chapter_title, p.version_id, v.version_no, v.body_markdown \
+                    c.title AS chapter_title, p.version_id, v.version_no, v.body_markdown, \
+                    (SELECT prior.id FROM chapters prior \
+                     JOIN chapter_publications pp ON pp.chapter_id = prior.id \
+                     JOIN chapter_versions pv ON pv.id = pp.version_id AND pv.chapter_id = prior.id \
+                     WHERE prior.book_id = c.book_id AND prior.chapter_no < c.chapter_no \
+                       AND prior.visibility = 'public' AND prior.access_level = 'free' \
+                       AND NOT prior.admin_hold AND NOT prior.is_deleted \
+                       AND (prior.reader_released_at IS NULL OR prior.reader_released_at <= now()) \
+                     ORDER BY prior.chapter_no DESC LIMIT 1) AS previous_chapter_id, \
+                    (SELECT following.id FROM chapters following \
+                     JOIN chapter_publications fp ON fp.chapter_id = following.id \
+                     JOIN chapter_versions fv ON fv.id = fp.version_id AND fv.chapter_id = following.id \
+                     WHERE following.book_id = c.book_id AND following.chapter_no > c.chapter_no \
+                       AND following.visibility = 'public' AND following.access_level = 'free' \
+                       AND NOT following.admin_hold AND NOT following.is_deleted \
+                       AND (following.reader_released_at IS NULL OR following.reader_released_at <= now()) \
+                     ORDER BY following.chapter_no ASC LIMIT 1) AS next_chapter_id \
              FROM chapters AS c \
              JOIN books AS b ON b.id = c.book_id \
              JOIN chapter_publications AS p ON p.chapter_id = c.id \
@@ -114,6 +130,16 @@ impl PublicReadingRepository for PgReader {
                 chapter_title: row.try_get("chapter_title").map_err(map_db)?,
                 version_no: row.try_get("version_no").map_err(map_db)?,
                 body_markdown: row.try_get("body_markdown").map_err(map_db)?,
+                previous_chapter_id: row
+                    .try_get::<Option<i64>, _>("previous_chapter_id")
+                    .map_err(map_db)?
+                    .map(positive_id)
+                    .transpose()?,
+                next_chapter_id: row
+                    .try_get::<Option<i64>, _>("next_chapter_id")
+                    .map_err(map_db)?
+                    .map(positive_id)
+                    .transpose()?,
             })
         })
         .transpose()
