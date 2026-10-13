@@ -76,7 +76,7 @@ async fn integration_postgres_catalog_hides_drafts_and_enforces_identity() {
         assert!(table_name.is_some(), "missing table: {table}");
     }
     sqlx::query(
-        "TRUNCATE TABLE chapter_purchase_revocations, library_purchased_chapters, chapter_purchase_facts, reader_book_positions, chapter_first_release_events, chapter_save_commands, book_create_commands, chapter_publications, chapter_versions, chapters, books RESTART IDENTITY",
+        "TRUNCATE TABLE chapter_purchase_commands, reader_wallet_entries, reader_wallet_accounts, chapter_purchase_revocations, library_purchased_chapters, chapter_purchase_facts, reader_book_positions, chapter_first_release_events, chapter_save_commands, book_create_commands, chapter_publications, chapter_versions, chapters, books RESTART IDENTITY",
     )
     .execute(&pool)
     .await
