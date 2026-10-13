@@ -159,9 +159,9 @@
     framePending = false;
     if (!engaged || stopped || document.hidden) return;
     const place = visiblePlace();
-    if (!ahead(place, confirmed) || !ahead(place, pending)) return;
-    pending = place;
-    schedule();
+    if (!ahead(place, confirmed)) return;
+    if (ahead(place, pending)) pending = place;
+    if (!sending) schedule();
   }
 
   function engage() { engaged = true; }
