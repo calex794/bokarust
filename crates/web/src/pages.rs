@@ -122,7 +122,10 @@ pub(crate) fn chapter_navigation(chapter: &PublicChapterPage, private: bool) -> 
 pub(crate) fn reader(chapter: &PublicChapterPage, chapter_id: u64) -> Html<String> {
     let body = include_str!("../templates/reader.html")
         .replace("<!--CHAPTER_ID-->", &chapter_id.to_string())
-        .replace("<!--CHAPTER_NAVIGATION-->", &chapter_navigation(chapter, false))
+        .replace(
+            "<!--CHAPTER_NAVIGATION-->",
+            &chapter_navigation(chapter, false),
+        )
         .replace("<!--BOOK_ID-->", &chapter.book_id.to_string())
         .replace("<!--BOOK_TITLE-->", &escape_html(&chapter.book_title))
         .replace("<!--CHAPTER_TITLE-->", &escape_html(&chapter.chapter_title))
