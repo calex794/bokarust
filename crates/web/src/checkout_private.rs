@@ -58,11 +58,18 @@ fn fail(error: CheckoutError) -> Response {
     match error {
         CheckoutError::Invalid => private_page(StatusCode::BAD_REQUEST, &[]),
         CheckoutError::Missing => private_page(StatusCode::NOT_FOUND, &[]),
-        CheckoutError::Changed | CheckoutError::AlreadyOwned => {
-            private_page((StatusCode::CONFLICT, "Цена, редакция или право изменились. Обновите страницу покупки."), &[])
-        }
+        CheckoutError::Changed | CheckoutError::AlreadyOwned => private_page(
+            (
+                StatusCode::CONFLICT,
+                "Цена, редакция или право изменились. Обновите страницу покупки.",
+            ),
+            &[],
+        ),
         CheckoutError::InsufficientFunds => private_page(
-            (StatusCode::PAYMENT_REQUIRED, "Недостаточно средств на внутреннем кошельке."),
+            (
+                StatusCode::PAYMENT_REQUIRED,
+                "Недостаточно средств на внутреннем кошельке.",
+            ),
             &[],
         ),
         CheckoutError::Unavailable => private_page(StatusCode::SERVICE_UNAVAILABLE, &[]),
@@ -102,7 +109,10 @@ async fn offer(
     };
     let (csrf, cookies) = state.cookies.csrf_for_page(&headers);
     let key = generate_session_token();
-    private_page(checkout_pages::offer(&offer, balance, &csrf, &key), &cookies)
+    private_page(
+        checkout_pages::offer(&offer, balance, &csrf, &key),
+        &cookies,
+    )
 }
 
 async fn purchase(
@@ -111,8 +121,7 @@ async fn purchase(
     headers: HeaderMap,
     Form(form): Form<CheckoutForm>,
 ) -> Response {
-    if !state.cookies.same_origin(&headers)
-        || !state.cookies.valid_csrf(&headers, &form.csrf_token)
+    if !state.cookies.same_origin(&headers) || !state.cookies.valid_csrf(&headers, &form.csrf_token)
     {
         return private_page(StatusCode::FORBIDDEN, &[]);
     }
