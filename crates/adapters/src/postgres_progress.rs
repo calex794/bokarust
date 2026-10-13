@@ -1,6 +1,6 @@
 //! PostgreSQL-backed private continuation positions. No purchase rights inferred.
 #![forbid(unsafe_code)]
-use bokarust_application::reading_progress::{ContinueReading, ProgressError};
+use bokarust_application::reading_progress::{ContinueReading, ProgressError, ReadingPlace};
 use sqlx::{PgPool, Row};
 
 #[derive(Clone)]
@@ -13,14 +13,14 @@ impl PgReadingProgress {
         Self { pool }
     }
 
-    pub async fn saved_block(
+    pub async fn saved_place(
         &self,
         user_id: i64,
         chapter_id: i64,
         version_id: i64,
-    ) -> Result<Option<i32>, ProgressError> {
-        sqlx::query_scalar(
-            "SELECT block_index FROM reader_book_positions \
+    ) -> Result<Option<ReadingPlace>, ProgressError> {
+        let row = sqlx::query(
+            "SELECT block_index, char_offset FROM reader_book_positions \
              WHERE user_id = $1 AND chapter_id = $2 AND version_id = $3",
         )
         .bind(user_id)
@@ -28,7 +28,14 @@ impl PgReadingProgress {
         .bind(version_id)
         .fetch_optional(&self.pool)
         .await
-        .map_err(|_| ProgressError::Unavailable)
+        .map_err(|_| ProgressError::Unavailable)?;
+        row.map(|record| {
+            Ok(ReadingPlace {
+                block_index: record.try_get("block_index").map_err(|_| ProgressError::Unavailable)?,
+                char_offset: record.try_get("char_offset").map_err(|_| ProgressError::Unavailable)?,
+            })
+        })
+        .transpose()
     }
 
     pub async fn continue_reading(
@@ -92,16 +99,19 @@ impl PgReadingProgress {
         user_id: i64,
         chapter_id: i64,
         version_id: i64,
-        block_index: i32,
+        place: ReadingPlace,
     ) -> Result<(), ProgressError> {
-        if user_id <= 0 || chapter_id <= 0 || version_id <= 0 || !(1..=200).contains(&block_index) {
+        if user_id <= 0 || chapter_id <= 0 || version_id <= 0
+            || !(1..=200).contains(&place.block_index)
+            || !(0..=100_000).contains(&place.char_offset)
+        {
             return Err(ProgressError::Invalid);
         }
         let result = sqlx::query(
             "INSERT INTO reader_book_positions AS saved \
                 (user_id, book_id, chapter_id, chapter_no, chapter_revision, \
-                 version_id, block_index) \
-             SELECT $1, c.book_id, c.id, c.chapter_no, c.edit_revision, $3, $4 \
+                 version_id, block_index, char_offset) \
+             SELECT $1, c.book_id, c.id, c.chapter_no, c.edit_revision, $3, $4, $5 \
              FROM chapters AS c \
              JOIN books AS b ON b.id = c.book_id \
              JOIN chapter_publications AS published ON published.chapter_id = c.id \
@@ -117,17 +127,21 @@ impl PgReadingProgress {
                chapter_no = EXCLUDED.chapter_no, \
                chapter_revision = EXCLUDED.chapter_revision, \
                version_id = EXCLUDED.version_id, \
-               block_index = EXCLUDED.block_index, updated_at = now() \
+               block_index = EXCLUDED.block_index, \
+               char_offset = EXCLUDED.char_offset, updated_at = now() \
              WHERE saved.chapter_no < EXCLUDED.chapter_no \
                 OR (saved.chapter_no = EXCLUDED.chapter_no \
                   AND (saved.chapter_revision < EXCLUDED.chapter_revision \
                     OR (saved.chapter_revision = EXCLUDED.chapter_revision \
-                      AND saved.block_index < EXCLUDED.block_index)))",
+                      AND (saved.block_index < EXCLUDED.block_index \
+                        OR (saved.block_index = EXCLUDED.block_index \
+                            AND saved.char_offset < EXCLUDED.char_offset)))))",
         )
         .bind(user_id)
         .bind(chapter_id)
         .bind(version_id)
-        .bind(block_index)
+        .bind(place.block_index)
+        .bind(place.char_offset)
         .execute(&self.pool)
         .await
         .map_err(|_| ProgressError::Unavailable)?;
