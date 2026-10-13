@@ -12,6 +12,30 @@ pub fn reader_blocks(text: &str) -> Vec<String> {
         .collect()
 }
 
+/// Reading position in UTF-16 code units, matching the browser DOM Text.offset.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct ReadingPlace {
+    pub block_index: i32,
+    pub char_offset: i32,
+}
+
+pub fn valid_text_place(
+    place: ReadingPlace,
+    blocks: &[String],
+) -> Result<(), ProgressError> {
+    valid_place(place.block_index, blocks.len())?;
+    let text = &blocks[(place.block_index - 1) as usize];
+    if place.char_offset < 0
+        || place.char_offset > 100_000
+        || usize::try_from(place.char_offset)
+            .ok()
+            .is_none_or(|v| v > text.encode_utf16().count())
+    {
+        return Err(ProgressError::Invalid);
+    }
+    Ok(())
+}
+
 #[derive(Clone, Debug)]
 pub struct ContinueReading {
     pub book_id: i64,
@@ -57,6 +81,16 @@ mod tests {
         let blocks = reader_blocks(&source);
         assert_eq!(blocks.len(), 200);
         assert_eq!(blocks.join("\n\n"), source);
+    }
+
+    #[test]
+    fn position_uses_utf16_units_and_rejects_outside_text() {
+        let text = reader_blocks("т😀a\\n\\nSecond");
+        assert_eq!(text[0].encode_utf16().count(), 4);
+        assert!(valid_text_place(ReadingPlace { block_index: 1, char_offset: 4 }, &text).is_ok());
+        assert_eq!(valid_text_place(ReadingPlace { block_index: 1, char_offset: 5 }, &text), Err(ProgressError::Invalid));
+        assert_eq!(valid_text_place(ReadingPlace { block_index: 0, char_offset: 0 }, &text), Err(ProgressError::Invalid));
+        assert_eq!(valid_text_place(ReadingPlace { block_index: 1, char_offset: -1 }, &text), Err(ProgressError::Invalid));
     }
 
     #[test]
