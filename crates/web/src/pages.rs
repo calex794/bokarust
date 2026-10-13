@@ -99,11 +99,30 @@ pub(crate) fn book_detail(book: &PublicBookPage) -> Html<String> {
     layout(&book.title, "Опубликованные главы книги.", &body)
 }
 
+/// Readable-only chapter neighbours, already filtered by the database.
+pub(crate) fn chapter_navigation(chapter: &PublicChapterPage, private: bool) -> String {
+    let prefix = if private { "/read" } else { "/reader" };
+    let previous = chapter
+        .previous_chapter_id
+        .map(|id| format!("<a rel=\"prev\" href=\"{prefix}/{id}\">← Предыдущая глава</a>"))
+        .unwrap_or_default();
+    let next = chapter
+        .next_chapter_id
+        .map(|id| format!("<a rel=\"next\" href=\"{prefix}/{id}\">Следующая глава →</a>"))
+        .unwrap_or_default();
+    if previous.is_empty() && next.is_empty() {
+        String::new()
+    } else {
+        format!("<nav class=\"chapter-navigation\" aria-label=\"Переход между главами\">{previous}{next}</nav>")
+    }
+}
+
 /// Render Markdown source as escaped, wrapped text until a fully sanitized
 /// Markdown renderer has passed separate security and visual testing.
 pub(crate) fn reader(chapter: &PublicChapterPage, chapter_id: u64) -> Html<String> {
     let body = include_str!("../templates/reader.html")
         .replace("<!--CHAPTER_ID-->", &chapter_id.to_string())
+        .replace("<!--CHAPTER_NAVIGATION-->", &chapter_navigation(chapter, false))
         .replace("<!--BOOK_ID-->", &chapter.book_id.to_string())
         .replace("<!--BOOK_TITLE-->", &escape_html(&chapter.book_title))
         .replace("<!--CHAPTER_TITLE-->", &escape_html(&chapter.chapter_title))
