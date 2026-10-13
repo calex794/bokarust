@@ -155,17 +155,16 @@ async fn integration_purchased_version_survives_hide_and_edit_but_not_hold_or_re
     .fetch_one(&pool)
     .await
     .unwrap();
-    sqlx::query(
-        "INSERT INTO library_purchased_chapters \
-         (user_id,chapter_id,active_version_id,purchase_id) VALUES ($1,$2,$3,$4)",
+    let (linked_user, linked_version, linked_purchase): (i64, i64, i64) = sqlx::query_as(
+        "SELECT user_id, active_version_id, purchase_id \
+         FROM library_purchased_chapters WHERE user_id=$1 AND chapter_id=$2",
     )
     .bind(owner)
     .bind(chapter)
-    .bind(old_version)
-    .bind(purchase)
-    .execute(&pool)
+    .fetch_one(&pool)
     .await
-    .unwrap();
+    .expect("settlement and library must be one atomic fact");
+    assert_eq!((linked_user, linked_version, linked_purchase), (owner, old_version, purchase));
     assert!(
         sqlx::query(
             "INSERT INTO chapter_purchase_facts \
@@ -181,6 +180,30 @@ async fn integration_purchased_version_survives_hide_and_edit_but_not_hold_or_re
         .is_err(),
         "duplicate settlement must fail"
     );
+    assert!(
+        sqlx::query(
+            "INSERT INTO chapter_purchase_facts \
+             (user_id,chapter_id,version_id,settlement_reference,amount_minor,currency) \
+             VALUES ($1,$2,$3,$4,100,'RUB')",
+        )
+        .bind(owner)
+        .bind(chapter)
+        .bind(old_version)
+        .bind(format!("settled-again:{suffix}"))
+        .execute(&pool)
+        .await
+        .is_err(),
+        "new key cannot buy the already-owned version a second time"
+    );
+    let count: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM chapter_purchase_facts WHERE user_id=$1 AND chapter_id=$2",
+    )
+    .bind(owner)
+    .bind(chapter)
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!(count, 1, "failed duplicate must leave no orphaned historical facts");
     assert!(
         sqlx::query("UPDATE chapter_purchase_facts SET version_id=$2 WHERE id=$1")
             .bind(purchase)
