@@ -1,7 +1,7 @@
 use crate::pages;
 use axum::{
     extract::{Path, Query, State},
-    http::{header, StatusCode},
+    http::StatusCode,
     response::{Html, IntoResponse},
     routing::get,
     Json, Router,
@@ -194,7 +194,7 @@ mod tests {
     use super::*;
     use axum::{
         body::{to_bytes, Body},
-        http::Request,
+        http::{header, Request},
     };
     use bokarust_adapters::in_memory::InMemoryCatalog;
     use bokarust_domain::books::{Book, BookKey, Visibility};
