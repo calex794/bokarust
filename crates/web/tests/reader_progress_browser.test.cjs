@@ -9,7 +9,8 @@ const script = fs.readFileSync(
   path.join(__dirname, "../assets/reader-progress.js"), "utf8"
 );
 
-function browser({ responseStatus = 204, saved = 0, savedOffset = 0, caretOffset = 0, hash = '' } = {}) {
+function browser({ responseStatus = 204, saved = 0, savedOffset = 0,
+  caretOffset = 0, hash = '', formatted = false, sourceStart = 0 } = {}) {
   const events = {};
   const documentEvents = {};
   const sent = [];
@@ -17,9 +18,22 @@ function browser({ responseStatus = 204, saved = 0, savedOffset = 0, caretOffset
   let top = [-500, 100, 700];
   let currentCaret = caretOffset;
   const scrolls = [];
+  const rangeStartOffsets = [];
   const textNode = { nodeType: 3, textContent: "Т😀x".repeat(40) };
-  const pre = (index) => ({
+  const mark = {
     firstChild: textNode,
+    getAttribute(name) { return name === "data-md-start" ? String(sourceStart) : null; },
+  };
+  if (formatted) textNode.parentElement = {
+    closest(selector) { return selector === "[data-md-start]" ? mark : null; },
+  };
+  const pre = (index) => ({
+    firstChild: formatted ? { nodeType: 1 } : textNode,
+    querySelectorAll(selector) {
+      assert.equal(selector, "[data-md-start]");
+      return formatted ? [mark] : [];
+    },
+    contains(node) { return node === textNode; },
     getBoundingClientRect() {
       return { top: top[index], left: 20, width: 400 };
     },
@@ -59,7 +73,11 @@ function browser({ responseStatus = 204, saved = 0, savedOffset = 0, caretOffset
     },
     createRange() {
       return {
-        setStart(node, offset) { this.node = node; this.offset = offset; },
+        setStart(node, offset) {
+          this.node = node;
+          this.offset = offset;
+          rangeStartOffsets.push(offset);
+        },
         collapse() {},
         getBoundingClientRect() { return { top: 230 }; },
       };
@@ -95,6 +113,7 @@ function browser({ responseStatus = 204, saved = 0, savedOffset = 0, caretOffset
   vm.runInNewContext(script, context, { timeout: 1500 });
   return {
     events, documentEvents, status, sent, beacons, document, timers, scrolls,
+    rangeStartOffsets,
     setTop(value) { top = value; },
     setCaretOffset(value) { currentCaret = value; },
     setNow(value) { now = value; },
@@ -215,4 +234,38 @@ test("fragment restores a saved character offset without writing it again", () =
   const unrelated = browser({ saved: 2, savedOffset: 12, hash: "#p-1" });
   unrelated.events.load();
   assert.equal(unrelated.scrolls.length, 0);
+});
+
+
+test("formatted Markdown saves source offset rather than HTML text-node offset", async () => {
+  const page = browser({ formatted: true, sourceStart: 9, caretOffset: 4 });
+  page.events.wheel();
+  page.events.scroll();
+  await page.fireTimer();
+  const body = new URLSearchParams(page.sent[0].options.body);
+  assert.equal(body.get("block_index"), "2");
+  assert.equal(body.get("char_offset"), "13");
+});
+
+test("existing precise bookmark restores inside formatted text after markup", () => {
+  const page = browser({
+    formatted: true, sourceStart: 9, saved: 2, savedOffset: 15, hash: "#p-2",
+  });
+  page.events.load();
+  assert.equal(page.scrolls.length, 1);
+  assert.deepEqual(page.rangeStartOffsets, [6]);
+  page.events.scroll();
+  assert.equal(page.sent.length, 0);
+});
+
+test("caret outside reader markup cannot produce a false source offset", async () => {
+  const page = browser({ formatted: true, sourceStart: 30, caretOffset: 2 });
+  page.events.wheel();
+  page.document.caretPositionFromPoint = () => ({
+    offsetNode: { nodeType: 3, textContent: "Outside navigation" }, offset: 7,
+  });
+  page.events.scroll();
+  await page.fireTimer();
+  const body = new URLSearchParams(page.sent[0].options.body);
+  assert.equal(body.get("char_offset"), "0");
 });
