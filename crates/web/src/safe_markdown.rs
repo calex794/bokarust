@@ -1,6 +1,6 @@
 //! Restricted, server-side Markdown for reader text. No raw HTML is trusted.
 #![forbid(unsafe_code)]
-use crate::pages::escape_html;
+use crate::html_escape::escape_html;
 use std::fmt::Write;
 
 /// Every visible source segment retains its original UTF-16 offset inside a
