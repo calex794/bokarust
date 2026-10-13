@@ -3,6 +3,8 @@
 
 mod auth;
 mod auth_cookies;
+mod checkout_pages;
+mod checkout_private;
 mod author;
 mod author_pages;
 mod html_escape;
