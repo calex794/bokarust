@@ -106,6 +106,15 @@ fn place(csrf: &str, version_id: i64, block: i32) -> String {
     ])
 }
 
+fn place_offset(csrf: &str, version_id: i64, block: i32, offset: i32) -> String {
+    form(&[
+        ("csrf_token", csrf),
+        ("version_id", &version_id.to_string()),
+        ("block_index", &block.to_string()),
+        ("char_offset", &offset.to_string()),
+    ])
+}
+
 async fn user(accounts: &PgAccounts, name: &str) -> (i64, String) {
     let hash = hash_password("a sufficiently long test password").expect("Argon2");
     let email = name.to_ascii_lowercase();
@@ -197,7 +206,7 @@ async fn integration_progress_resume_without_rollback_or_access_leak() {
         book_id,
         1,
         "<First chapter>",
-        "Start\n\nSecond\n\nThird\n\n<script>dont-run()</script>",
+        "Start😀\n\nSecond\n\nThird\n\n<script>dont-run()</script>",
     )
     .await;
     let app = router_with_auth_and_reading(
@@ -404,6 +413,37 @@ async fn integration_progress_resume_without_rollback_or_access_leak() {
     assert!(!auto_headers.contains_key(header::LOCATION));
     assert!(auto_body.is_empty());
 
+    // An emoji counts as two UTF-16 units in the browser text node.
+    assert_eq!(
+        call(&app, "POST", &autosave_url,
+            &place_offset(&csrf, first_version, 1, 8), &browser,
+            "http://localhost:3000").await.0,
+        StatusCode::BAD_REQUEST
+    );
+    assert_eq!(
+        call(&app, "POST", &autosave_url,
+            &place_offset(&csrf, first_version, 1, 7), &browser,
+            "http://localhost:3000").await.0,
+        StatusCode::NO_CONTENT
+    );
+    let offset: i32 = sqlx::query_scalar(
+        "SELECT char_offset FROM reader_book_positions WHERE user_id=$1 AND book_id=$2",
+    ).bind(one).bind(book_id).fetch_one(&pool).await.unwrap();
+    assert_eq!(offset, 7);
+    // A delayed earlier offset in the same block cannot undo a later one.
+    assert_eq!(
+        call(&app, "POST", &autosave_url,
+            &place_offset(&csrf, first_version, 1, 4), &browser,
+            "http://localhost:3000").await.0,
+        StatusCode::NO_CONTENT
+    );
+    let (_, _, exact_html) = call(&app, "GET", &read_url, "", &browser, "").await;
+    assert!(exact_html.contains("href=\"#p-1\" data-char-offset=\"7\""));
+    let offset: i32 = sqlx::query_scalar(
+        "SELECT char_offset FROM reader_book_positions WHERE user_id=$1 AND book_id=$2",
+    ).bind(one).bind(book_id).fetch_one(&pool).await.unwrap();
+    assert_eq!(offset, 7);
+
     // Parallel tabs are serialized by PostgreSQL's upsert condition.
     let (a, b) = tokio::join!(
         call(
@@ -536,6 +576,17 @@ async fn integration_progress_resume_without_rollback_or_access_leak() {
     // Saving a later chapter supersedes earlier progress in the same book.
     let (next_chapter, next_version) =
         chapter(&pool, book_id, 2, "Следующая глава", "one\n\ntwo").await;
+    let (_, _, first_with_next) = call(&app, "GET", &read_url, "", &browser, "").await;
+    assert!(first_with_next.contains(&format!("href=\"/read/{next_chapter}\"")));
+    let (_, _, next_with_prev) = call(
+        &app, "GET", &format!("/read/{next_chapter}"), "", &browser, "",
+    ).await;
+    assert!(next_with_prev.contains(&format!("href=\"/read/{chapter_id}\"")));
+    let (_, _, public_first) = call(
+        &app, "GET", &format!("/reader/{chapter_id}"), "", "", "",
+    ).await;
+    assert!(public_first.contains(&format!("href=\"/reader/{next_chapter}\"")));
+
     let next_url = format!("/read/{next_chapter}/place");
     assert_eq!(
         call(
@@ -604,6 +655,14 @@ async fn integration_progress_resume_without_rollback_or_access_leak() {
         .expect("release");
     let (_, _, after) = call(&app, "GET", "/me/library", "", &one_cookie, "").await;
     assert!(after.contains("Следующая глава"));
+
+    // A public reader must never disclose a link to a blocked chapter.
+    sqlx::query("UPDATE chapters SET admin_hold=true WHERE id=$1")
+        .bind(next_chapter).execute(&pool).await.expect("chapter hold");
+    let (_, _, no_next) = call(&app, "GET", &read_url, "", &browser, "").await;
+    assert!(!no_next.contains(&format!("href=\"/read/{next_chapter}\"")));
+    sqlx::query("UPDATE chapters SET admin_hold=false WHERE id=$1")
+        .bind(next_chapter).execute(&pool).await.expect("remove chapter hold");
 
     // An active purchased/paid restriction is still enforced; cursor is not a purchase.
     sqlx::query("UPDATE chapters SET access_level='paid', price_amount=100 WHERE id=$1")
