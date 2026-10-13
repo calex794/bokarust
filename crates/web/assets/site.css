@@ -219,3 +219,8 @@ button:disabled, input:disabled { cursor: not-allowed; }
 
 /* Accessible autosave feedback; never obstruct the reading surface. */
 .reader-save-status { min-height: 1.6em; font-size: 0.92rem; color: #27613f; }
+
+/* Adjacent chapter links are filtered by the public-reading SQL gate. */
+.chapter-navigation { display: flex; flex-wrap: wrap; gap: 22px; justify-content: space-between; margin-block: 18px; }
+.chapter-navigation a { text-decoration: underline; }
+.chapter-navigation a:focus-visible { outline: 2px solid currentColor; outline-offset: 4px; }
