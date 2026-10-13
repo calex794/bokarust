@@ -5,6 +5,7 @@ pub mod account_security;
 pub mod in_memory;
 pub mod postgres;
 pub mod postgres_accounts;
+pub mod postgres_checkout;
 pub mod postgres_author;
 mod postgres_author_books;
 mod postgres_author_chapters;
