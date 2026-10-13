@@ -1,4 +1,4 @@
-/* BKR-88: small progressive enhancement. Manual place buttons work without JS. */
+/* BKR-89: deterministic UTF-16 place within immutable chapter text. */
 (() => {
   "use strict";
 
@@ -11,16 +11,18 @@
   const version = form.querySelector('input[name="version_id"]')?.value;
   const action = new URL(form.action, window.location.href);
   if (!csrf || !/^[0-9]+$/.test(version || "") ||
-      action.origin !== window.location.origin || !action.pathname.endsWith("/place")) {
-    return;
-  }
+      action.origin !== window.location.origin || !action.pathname.endsWith("/place")) return;
   const endpoint = action.pathname + "/auto";
+
   const quietMs = 1400;
   const minIntervalMs = 7000;
   const saved = document.querySelector('.reader-return a[href^="#p-"]');
   const savedNumber = saved ? Number(saved.getAttribute("href").slice(3)) : 0;
-  let confirmed = Number.isInteger(savedNumber) && savedNumber > 0 ? savedNumber : 0;
-  let pending = 0;
+  const savedOffset = saved ? Number(saved.getAttribute("data-char-offset") || 0) : 0;
+  const initialBlock = Number.isInteger(savedNumber) && savedNumber > 0 ? savedNumber : 0;
+  const initialOffset = Number.isInteger(savedOffset) && savedOffset >= 0 ? savedOffset : 0;
+  let confirmed = { block: initialBlock, offset: initialOffset };
+  let pending = { block: 0, offset: 0 };
   let lastAttempt = -minIntervalMs;
   let timer = null;
   let framePending = false;
@@ -30,8 +32,18 @@
 
   status.textContent = "Место сохраняется автоматически при прокрутке.";
 
-  // Find the block crossing the upper reading area. Binary search avoids a
-  // full DOM scan even at the maximum 200 blocks per chapter.
+  function ahead(a, b) {
+    return a.block > b.block || (a.block === b.block && a.offset > b.offset);
+  }
+
+  function textNode(index) {
+    const element = pieces[index - 1]?.querySelector(".reader-piece__text");
+    const node = element?.firstChild;
+    if (!node || node.nodeType !== 3) return null;
+    return { element, node };
+  }
+
+  // Binary search costs O(log N), where N never exceeds 200.
   function visibleBlock() {
     const threshold = Math.min(300, window.innerHeight * 0.42);
     let left = 0;
@@ -49,11 +61,51 @@
     return found + 1;
   }
 
-  function payload(index) {
+  function visiblePlace() {
+    const block = visibleBlock();
+    const part = textNode(block);
+    if (!part) return { block, offset: 0 };
+    const rect = part.element.getBoundingClientRect();
+    const x = rect.left + Math.min(Math.max(8, rect.width / 2), Math.max(8, rect.width - 1));
+    const y = Math.max(rect.top + 1, Math.min(window.innerHeight - 2, window.innerHeight * 0.42));
+    let node = null;
+    let offset = 0;
+    if (typeof document.caretPositionFromPoint === "function") {
+      const position = document.caretPositionFromPoint(x, y);
+      node = position?.offsetNode;
+      offset = position?.offset;
+    } else if (typeof document.caretRangeFromPoint === "function") {
+      const range = document.caretRangeFromPoint(x, y);
+      node = range?.startContainer;
+      offset = range?.startOffset;
+    }
+    // Never treat positions in navigation, buttons or other blocks as text.
+    if (node !== part.node || !Number.isInteger(offset)) return { block, offset: 0 };
+    return { block, offset: Math.max(0, Math.min(offset, part.node.textContent.length)) };
+  }
+
+  // Only restore a bookmarked fragment, not an unrelated deep link or new visit.
+  function restorePlace() {
+    if (!saved || initialBlock < 1 || initialOffset < 1 ||
+        window.location.hash !== "#p-" + initialBlock ||
+        typeof document.createRange !== "function") return;
+    const part = textNode(initialBlock);
+    if (!part) return;
+    const range = document.createRange();
+    range.setStart(part.node, Math.min(initialOffset, part.node.textContent.length));
+    range.collapse(true);
+    const rect = range.getBoundingClientRect();
+    if (rect && Number.isFinite(rect.top)) {
+      window.scrollBy(0, rect.top - Math.min(160, window.innerHeight * 0.28));
+    }
+  }
+
+  function payload(place) {
     return new URLSearchParams({
       csrf_token: csrf,
       version_id: version,
-      block_index: String(index),
+      block_index: String(place.block),
+      char_offset: String(place.offset),
     }).toString();
   }
 
@@ -67,8 +119,8 @@
   }
 
   async function save() {
-    if (stopped || sending || pending <= confirmed) return;
-    const index = pending;
+    if (stopped || sending || !ahead(pending, confirmed)) return;
+    const place = pending;
     lastAttempt = Date.now();
     sending = true;
     status.textContent = "Сохраняю место…";
@@ -80,10 +132,10 @@
         redirect: "error",
         cache: "no-store",
         headers: { "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8" },
-        body: payload(index),
+        body: payload(place),
       });
       if (response.status === 204) {
-        confirmed = Math.max(confirmed, index);
+        if (ahead(place, confirmed)) confirmed = place;
         status.textContent = "Место сохранено.";
         succeeded = true;
       } else if (response.status === 409) {
@@ -99,17 +151,16 @@
       status.textContent = "Нет связи. Повторим при следующей прокрутке.";
     } finally {
       sending = false;
-      // Never spin on network failures. A subsequent scroll can retry.
-      if (succeeded && pending > confirmed && !stopped && !document.hidden) schedule();
+      if (succeeded && ahead(pending, confirmed) && !stopped && !document.hidden) schedule();
     }
   }
 
   function considerScroll() {
     framePending = false;
     if (!engaged || stopped || document.hidden) return;
-    const index = visibleBlock();
-    if (index <= confirmed) return;
-    pending = Math.max(pending, index);
+    const place = visiblePlace();
+    if (!ahead(place, confirmed) || !ahead(place, pending)) return;
+    pending = place;
     schedule();
   }
 
@@ -127,19 +178,20 @@
     window.requestAnimationFrame(considerScroll);
   }, { passive: true });
 
-  // Best effort on tab close. The database still rejects stale/older places.
   function flushOnHide() {
     if (timer !== null) {
       clearTimeout(timer);
       timer = null;
     }
-    if (!stopped && pending > confirmed && navigator.sendBeacon) {
+    if (!stopped && ahead(pending, confirmed) && navigator.sendBeacon) {
       const body = new Blob([payload(pending)], {
         type: "application/x-www-form-urlencoded;charset=UTF-8",
       });
       navigator.sendBeacon(endpoint, body);
     }
   }
+  window.addEventListener("load", restorePlace);
+  window.addEventListener("hashchange", restorePlace);
   window.addEventListener("pagehide", flushOnHide);
   document.addEventListener("visibilitychange", () => {
     if (document.hidden) flushOnHide();
