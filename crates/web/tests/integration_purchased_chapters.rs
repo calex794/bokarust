@@ -164,7 +164,10 @@ async fn integration_purchased_version_survives_hide_and_edit_but_not_hold_or_re
     .fetch_one(&pool)
     .await
     .expect("settlement and library must be one atomic fact");
-    assert_eq!((linked_user, linked_version, linked_purchase), (owner, old_version, purchase));
+    assert_eq!(
+        (linked_user, linked_version, linked_purchase),
+        (owner, old_version, purchase)
+    );
     assert!(
         sqlx::query(
             "INSERT INTO chapter_purchase_facts \
@@ -203,7 +206,10 @@ async fn integration_purchased_version_survives_hide_and_edit_but_not_hold_or_re
     .fetch_one(&pool)
     .await
     .unwrap();
-    assert_eq!(count, 1, "failed duplicate must leave no orphaned historical facts");
+    assert_eq!(
+        count, 1,
+        "failed duplicate must leave no orphaned historical facts"
+    );
     assert!(
         sqlx::query("UPDATE chapter_purchase_facts SET version_id=$2 WHERE id=$1")
             .bind(purchase)
