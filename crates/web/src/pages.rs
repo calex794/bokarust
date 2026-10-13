@@ -119,7 +119,8 @@ pub(crate) fn reader(chapter: &PublicChapterPage, chapter_id: u64) -> Html<Strin
         .replace(
             "<!--CHAPTER_CONTENT-->",
             &crate::safe_markdown::render(
-                &bokarust_application::reading_progress::reader_blocks(&chapter.body_markdown).join("\n\n"),
+                &bokarust_application::reading_progress::reader_blocks(&chapter.body_markdown)
+                    .join("\n\n"),
             ),
         );
     layout(&chapter.chapter_title, "Опубликованный текст главы.", &body)
