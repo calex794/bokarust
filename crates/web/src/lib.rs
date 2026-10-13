@@ -10,6 +10,8 @@ mod pages;
 mod password_jobs;
 mod reading_pages;
 mod reading_private;
+mod purchased_pages;
+mod purchased_private;
 mod routes;
 mod safe_markdown;
 
