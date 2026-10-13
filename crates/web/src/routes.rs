@@ -194,7 +194,7 @@ mod tests {
     use super::*;
     use axum::{
         body::{to_bytes, Body},
-        http::{header, Request},
+        http::Request,
     };
     use bokarust_adapters::in_memory::InMemoryCatalog;
     use bokarust_domain::books::{Book, BookKey, Visibility};
