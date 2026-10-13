@@ -33,6 +33,22 @@ CREATE TABLE library_purchased_chapters (
 CREATE INDEX library_purchased_recent_idx
     ON library_purchased_chapters (user_id, created_at DESC, chapter_id DESC);
 
+-- The library pointer and purchase fact commit atomically. A second
+-- settlement for a still-owned chapter fails rather than granting twice;
+-- even concurrent writers cannot produce an orphaned purchase or library row.
+CREATE FUNCTION install_purchased_chapter()
+RETURNS trigger LANGUAGE plpgsql AS $
+BEGIN
+    INSERT INTO library_purchased_chapters
+        (user_id, chapter_id, active_version_id, purchase_id)
+    VALUES (NEW.user_id, NEW.chapter_id, NEW.version_id, NEW.id);
+    RETURN NEW;
+END;
+$;
+CREATE TRIGGER purchase_facts_create_library
+    AFTER INSERT ON chapter_purchase_facts
+    FOR EACH ROW EXECUTE FUNCTION install_purchased_chapter();
+
 -- A refund/chargeback revokes the right without erasing historical settlement.
 -- This is not a refund/payment processor: only trusted accounting may insert.
 CREATE TABLE chapter_purchase_revocations (
