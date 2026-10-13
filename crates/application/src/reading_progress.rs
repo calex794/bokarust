@@ -85,7 +85,7 @@ mod tests {
 
     #[test]
     fn position_uses_utf16_units_and_rejects_outside_text() {
-        let text = reader_blocks("т😀a\\n\\nSecond");
+        let text = reader_blocks("т😀a\n\nSecond");
         assert_eq!(text[0].encode_utf16().count(), 4);
         assert!(valid_text_place(ReadingPlace { block_index: 1, char_offset: 4 }, &text).is_ok());
         assert_eq!(valid_text_place(ReadingPlace { block_index: 1, char_offset: 5 }, &text), Err(ProgressError::Invalid));
