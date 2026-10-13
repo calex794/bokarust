@@ -17,7 +17,7 @@ use bokarust_adapters::{
 };
 use bokarust_application::{
     reading::PublicReadingRepository,
-    reading_progress::{reader_blocks, valid_place, ProgressError},
+    reading_progress::{reader_blocks, valid_text_place, ProgressError, ReadingPlace},
 };
 use serde::Deserialize;
 use std::sync::Arc;
@@ -35,6 +35,8 @@ struct PositionForm {
     csrf_token: String,
     version_id: i64,
     block_index: i32,
+    #[serde(default)]
+    char_offset: i32,
 }
 
 pub(crate) fn router(
@@ -124,7 +126,7 @@ async fn read_chapter(
     };
     let saved = match state
         .progress
-        .saved_block(user, chapter_id, version_id)
+        .saved_place(user, chapter_id, version_id)
         .await
     {
         Ok(place) => place,
@@ -192,14 +194,15 @@ async fn persist_place(
     if version_id != form.version_id {
         return Err(Box::new(deny(StatusCode::CONFLICT)));
     }
-    valid_place(
-        form.block_index,
-        reader_blocks(&chapter.body_markdown).len(),
-    )
-    .map_err(|error| Box::new(failure(error)))?;
+    let place = ReadingPlace {
+        block_index: form.block_index,
+        char_offset: form.char_offset,
+    };
+    valid_text_place(place, &reader_blocks(&chapter.body_markdown))
+        .map_err(|error| Box::new(failure(error)))?;
     state
         .progress
-        .save_position(user, chapter_id, version_id, form.block_index)
+        .save_position(user, chapter_id, version_id, place)
         .await
         .map_err(|error| Box::new(failure(error)))
 }

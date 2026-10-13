@@ -4,12 +4,36 @@
 /// At most 200 stable anchors per immutable chapter version. Splitting and
 /// grouping is deterministic and does not depend on viewport dimensions.
 pub fn reader_blocks(text: &str) -> Vec<String> {
-    let paragraphs: Vec<&str> = text.split("\n\n").collect();
+    // HTML parsers normalize CRLF and bare CR. Match the browser DOM text
+    // before computing or validating its UTF-16 character offsets.
+    let normalized = text.replace("\r\n", "\n").replace('\r', "\n");
+    let paragraphs: Vec<&str> = normalized.split("\n\n").collect();
     let group_size = paragraphs.len().div_ceil(200);
     paragraphs
         .chunks(group_size)
         .map(|group| group.join("\n\n"))
         .collect()
+}
+
+/// Reading position in UTF-16 code units, matching the browser DOM Text.offset.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct ReadingPlace {
+    pub block_index: i32,
+    pub char_offset: i32,
+}
+
+pub fn valid_text_place(place: ReadingPlace, blocks: &[String]) -> Result<(), ProgressError> {
+    valid_place(place.block_index, blocks.len())?;
+    let text = &blocks[(place.block_index - 1) as usize];
+    if place.char_offset < 0
+        || place.char_offset > 100_000
+        || usize::try_from(place.char_offset)
+            .ok()
+            .is_none_or(|v| v > text.encode_utf16().count())
+    {
+        return Err(ProgressError::Invalid);
+    }
+    Ok(())
 }
 
 #[derive(Clone, Debug)]
@@ -57,6 +81,55 @@ mod tests {
         let blocks = reader_blocks(&source);
         assert_eq!(blocks.len(), 200);
         assert_eq!(blocks.join("\n\n"), source);
+    }
+
+    #[test]
+    fn imported_windows_line_endings_match_browser_text() {
+        assert_eq!(reader_blocks("A\r\n\r\nB\rC"), vec!["A", "B\nC"]);
+    }
+
+    #[test]
+    fn position_uses_utf16_units_and_rejects_outside_text() {
+        let text = reader_blocks("т😀a\n\nSecond");
+        assert_eq!(text[0].encode_utf16().count(), 4);
+        assert!(valid_text_place(
+            ReadingPlace {
+                block_index: 1,
+                char_offset: 4
+            },
+            &text
+        )
+        .is_ok());
+        assert_eq!(
+            valid_text_place(
+                ReadingPlace {
+                    block_index: 1,
+                    char_offset: 5
+                },
+                &text
+            ),
+            Err(ProgressError::Invalid)
+        );
+        assert_eq!(
+            valid_text_place(
+                ReadingPlace {
+                    block_index: 0,
+                    char_offset: 0
+                },
+                &text
+            ),
+            Err(ProgressError::Invalid)
+        );
+        assert_eq!(
+            valid_text_place(
+                ReadingPlace {
+                    block_index: 1,
+                    char_offset: -1
+                },
+                &text
+            ),
+            Err(ProgressError::Invalid)
+        );
     }
 
     #[test]

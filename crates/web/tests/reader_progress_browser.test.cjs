@@ -9,12 +9,21 @@ const script = fs.readFileSync(
   path.join(__dirname, "../assets/reader-progress.js"), "utf8"
 );
 
-function browser({ responseStatus = 204, saved = 0 } = {}) {
+function browser({ responseStatus = 204, saved = 0, savedOffset = 0, caretOffset = 0, hash = '' } = {}) {
   const events = {};
   const documentEvents = {};
   const sent = [];
   const beacons = [];
   let top = [-500, 100, 700];
+  let currentCaret = caretOffset;
+  const scrolls = [];
+  const textNode = { nodeType: 3, textContent: "Т😀x".repeat(40) };
+  const pre = (index) => ({
+    firstChild: textNode,
+    getBoundingClientRect() {
+      return { top: top[index], left: 20, width: 400 };
+    },
+  });
   let now = 10_000;
   let nextTimer = 0;
   const timers = new Map();
@@ -29,6 +38,7 @@ function browser({ responseStatus = 204, saved = 0 } = {}) {
   };
   const pieces = [0, 1, 2].map((index) => ({
     getBoundingClientRect() { return { top: top[index] }; },
+    querySelector() { return pre(index); },
   }));
   const document = {
     hidden: false,
@@ -40,13 +50,26 @@ function browser({ responseStatus = 204, saved = 0 } = {}) {
       return pieces;
     },
     querySelector() {
-      return saved ? { getAttribute() { return "#p-" + saved; } } : null;
+      return saved ? { getAttribute(name) {
+        return name === "data-char-offset" ? String(savedOffset) : "#p-" + saved;
+      } } : null;
+    },
+    caretPositionFromPoint() {
+      return { offsetNode: textNode, offset: currentCaret };
+    },
+    createRange() {
+      return {
+        setStart(node, offset) { this.node = node; this.offset = offset; },
+        collapse() {},
+        getBoundingClientRect() { return { top: 230 }; },
+      };
     },
     addEventListener(name, handler) { documentEvents[name] = handler; },
   };
   const window = {
-    location: { href: "https://reader.example/read/17", origin: "https://reader.example" },
+    location: { href: "https://reader.example/read/17" + hash, origin: "https://reader.example", hash },
     innerHeight: 800,
+    scrollBy(x, y) { scrolls.push([x, y]); },
     addEventListener(name, handler) { events[name] = handler; },
     requestAnimationFrame(callback) { callback(); },
   };
@@ -71,8 +94,9 @@ function browser({ responseStatus = 204, saved = 0 } = {}) {
   };
   vm.runInNewContext(script, context, { timeout: 1500 });
   return {
-    events, documentEvents, status, sent, beacons, document, timers,
+    events, documentEvents, status, sent, beacons, document, timers, scrolls,
     setTop(value) { top = value; },
+    setCaretOffset(value) { currentCaret = value; },
     setNow(value) { now = value; },
     async fireTimer() {
       const first = timers.keys().next().value;
@@ -158,4 +182,37 @@ test("network failure requires another scroll instead of retrying forever", asyn
   page.events.scroll();
   assert.equal(page.timers.size, 1);
   assert.match(page.status.textContent, /следующей прокрутке/);
+});
+
+
+test("within one block the UTF-16 offset advances and is stored", async () => {
+  const page = browser({ caretOffset: 3 });
+  page.events.wheel();
+  page.events.scroll();
+  await page.fireTimer();
+  let payload = new URLSearchParams(page.sent[0].options.body);
+  assert.equal(payload.get("block_index"), "2");
+  assert.equal(payload.get("char_offset"), "3"); // UTF-16 position after an emoji
+  page.setCaretOffset(9);
+  page.events.scroll();
+  await page.fireTimer();
+  payload = new URLSearchParams(page.sent[1].options.body);
+  assert.equal(payload.get("block_index"), "2");
+  assert.equal(payload.get("char_offset"), "9");
+  page.setCaretOffset(2);
+  page.events.scroll();
+  assert.equal(page.timers.size, 0, "older place in the same paragraph is not resent");
+});
+
+test("fragment restores a saved character offset without writing it again", () => {
+  const page = browser({ saved: 2, savedOffset: 12, hash: "#p-2" });
+  assert.equal(page.scrolls.length, 0);
+  page.events.load();
+  assert.equal(page.scrolls.length, 1);
+  assert.equal(page.scrolls[0][0], 0);
+  page.events.scroll();
+  assert.equal(page.timers.size, 0, "programmatic restore must never save");
+  const unrelated = browser({ saved: 2, savedOffset: 12, hash: "#p-1" });
+  unrelated.events.load();
+  assert.equal(unrelated.scrolls.length, 0);
 });

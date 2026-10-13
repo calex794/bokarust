@@ -37,6 +37,8 @@ pub struct PublicChapterPage {
     pub chapter_title: String,
     pub version_no: i32,
     pub body_markdown: String,
+    pub previous_chapter_id: Option<u64>,
+    pub next_chapter_id: Option<u64>,
 }
 
 /// This port deliberately has no method to read paid, draft, held or deleted text.

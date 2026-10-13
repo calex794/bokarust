@@ -1,10 +1,10 @@
 //! Escaped, script-free chapter position controls.
 #![forbid(unsafe_code)]
-use crate::pages::{escape_html, layout};
+use crate::pages::{chapter_navigation, escape_html, layout};
 use axum::response::Html;
 use bokarust_application::{
     reading::PublicChapterPage,
-    reading_progress::{reader_blocks, ContinueReading},
+    reading_progress::{reader_blocks, ContinueReading, ReadingPlace},
 };
 use std::fmt::Write;
 
@@ -44,7 +44,7 @@ pub(crate) fn tracked_reader(
     chapter_id: i64,
     chapter: &PublicChapterPage,
     csrf: &str,
-    saved_block: Option<i32>,
+    saved_block: Option<ReadingPlace>,
 ) -> Html<String> {
     let sections = reader_blocks(&chapter.body_markdown);
     let mut blocks = String::with_capacity(chapter.body_markdown.len() + sections.len() * 300);
@@ -62,10 +62,13 @@ pub(crate) fn tracked_reader(
         .expect("write to String");
     }
     let saved = saved_block
-        .filter(|pos| *pos > 0 && usize::try_from(*pos).ok().is_some_and(|v| v <= sections.len()))
-        .map(|pos| {
+        .filter(|place| place.block_index > 0
+            && usize::try_from(place.block_index).ok().is_some_and(|v| v <= sections.len()))
+        .map(|place| {
+            let position = place.block_index;
+            let offset = usize::try_from(place.char_offset).unwrap_or(0);
             format!(
-                "<p class=\"reader-return\"><a href=\"#p-{pos}\">К сохранённому месту: отрывок {pos}</a></p>"
+                "<p class=\"reader-return\"><a href=\"#p-{position}\" data-char-offset=\"{offset}\">К сохранённому месту: отрывок {position}</a></p>"
             )
         })
         .unwrap_or_default();
@@ -78,6 +81,10 @@ pub(crate) fn tracked_reader(
         .replace("<!--VERSION_ID-->", &chapter.version_id.to_string())
         .replace("<!--CSRF-->", &escape_html(csrf))
         .replace("<!--SAVED_PLACE-->", &saved)
+        .replace(
+            "<!--CHAPTER_NAVIGATION-->",
+            &chapter_navigation(chapter, true),
+        )
         .replace("<!--CHAPTER_BLOCKS-->", &blocks);
     layout(
         &chapter.chapter_title,
@@ -97,9 +104,20 @@ mod tests {
             chapter_title: "<b>Unsafe</b>".into(),
             version_id: 5,
             version_no: 3,
+            previous_chapter_id: None,
+            next_chapter_id: None,
             body_markdown: "</pre><script>alert(1)</script>".into(),
         };
-        let page = tracked_reader(7, &chapter, "csrf", Some(2)).0;
+        let page = tracked_reader(
+            7,
+            &chapter,
+            "csrf",
+            Some(ReadingPlace {
+                block_index: 2,
+                char_offset: 0,
+            }),
+        )
+        .0;
         assert!(!page.contains("<script>alert(1)</script>"));
         assert!(page.contains("&lt;script&gt;"));
         assert!(page.contains("name=\"version_id\" value=\"5\""));

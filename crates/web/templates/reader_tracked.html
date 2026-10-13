@@ -4,6 +4,7 @@
       <a class="text-link" href="/books/<!--BOOK_ID-->">← <!--BOOK_TITLE--></a>
       <span> · </span><a class="text-link" href="/me/library">Моё чтение</a>
     </nav>
+    <!--CHAPTER_NAVIGATION-->
     <h1><!--CHAPTER_TITLE--></h1>
     <p class="eyebrow">Опубликованная версия <!--CHAPTER_VERSION--></p>
     <p class="page-description">Место сохраняется в вашем аккаунте. Если автоматическое сохранение недоступно, используйте кнопку возле нужного отрывка.</p>
@@ -12,8 +13,10 @@
     <form id="save-position" action="/read/<!--CHAPTER_ID-->/place" method="post">
       <input type="hidden" name="csrf_token" value="<!--CSRF-->">
       <input type="hidden" name="version_id" value="<!--VERSION_ID-->">
+      <input type="hidden" name="char_offset" value="0">
     </form>
     <article class="reader-sections"><!--CHAPTER_BLOCKS--></article>
+    <!--CHAPTER_NAVIGATION-->
     <p><a href="/me/library">К сохранённому чтению</a></p>
   </div>
   <script src="/assets/reader-progress.js" defer></script>
