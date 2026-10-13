@@ -81,7 +81,10 @@ pub(crate) fn tracked_reader(
         .replace("<!--VERSION_ID-->", &chapter.version_id.to_string())
         .replace("<!--CSRF-->", &escape_html(csrf))
         .replace("<!--SAVED_PLACE-->", &saved)
-        .replace("<!--CHAPTER_NAVIGATION-->", &chapter_navigation(chapter, true))
+        .replace(
+            "<!--CHAPTER_NAVIGATION-->",
+            &chapter_navigation(chapter, true),
+        )
         .replace("<!--CHAPTER_BLOCKS-->", &blocks);
     layout(
         &chapter.chapter_title,
@@ -105,7 +108,16 @@ mod tests {
             next_chapter_id: None,
             body_markdown: "</pre><script>alert(1)</script>".into(),
         };
-        let page = tracked_reader(7, &chapter, "csrf", Some(ReadingPlace { block_index: 2, char_offset: 0 })).0;
+        let page = tracked_reader(
+            7,
+            &chapter,
+            "csrf",
+            Some(ReadingPlace {
+                block_index: 2,
+                char_offset: 0,
+            }),
+        )
+        .0;
         assert!(!page.contains("<script>alert(1)</script>"));
         assert!(page.contains("&lt;script&gt;"));
         assert!(page.contains("name=\"version_id\" value=\"5\""));
