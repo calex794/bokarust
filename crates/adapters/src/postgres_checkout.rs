@@ -150,8 +150,14 @@ impl PgChapterCheckout {
         .await
         .map_err(db)?;
         if command.try_get::<i64, _>("chapter_id").map_err(db)? != chapter_id
-            || command.try_get::<i64, _>("expected_version_id").map_err(db)? != expected_version_id
-            || command.try_get::<i64, _>("expected_price_minor").map_err(db)? != expected_price_minor
+            || command
+                .try_get::<i64, _>("expected_version_id")
+                .map_err(db)?
+                != expected_version_id
+            || command
+                .try_get::<i64, _>("expected_price_minor")
+                .map_err(db)?
+                != expected_price_minor
         {
             return Err(CheckoutError::Changed);
         }
@@ -223,14 +229,12 @@ impl PgChapterCheckout {
             return Err(CheckoutError::InsufficientFunds);
         }
         let balance_after = balance - expected_price_minor;
-        sqlx::query(
-            "UPDATE reader_wallet_accounts SET balance_minor = $2 WHERE user_id = $1",
-        )
-        .bind(user_id)
-        .bind(balance_after)
-        .execute(&mut *tx)
-        .await
-        .map_err(db)?;
+        sqlx::query("UPDATE reader_wallet_accounts SET balance_minor = $2 WHERE user_id = $1")
+            .bind(user_id)
+            .bind(balance_after)
+            .execute(&mut *tx)
+            .await
+            .map_err(db)?;
 
         let settlement = format!("wallet:{user_id}:{command_key}");
         // Existing purchase trigger creates the pinned LibraryItem in this
