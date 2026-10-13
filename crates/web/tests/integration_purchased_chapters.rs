@@ -42,7 +42,7 @@ async fn call(
 async fn session(accounts: &PgAccounts, email: &str) -> (i64, String) {
     let password_hash = hash_password("long testing passphrase").unwrap();
     let id = accounts
-        .insert_user(email, "Покупатель", &password_hash)
+        .insert_user(&email.to_ascii_lowercase(), "Покупатель", &password_hash)
         .await
         .expect("test user");
     let token = generate_session_token();
