@@ -10,8 +10,12 @@ fn text_segment(out: &mut String, block: &str, byte_start: usize, text: &str) {
         return;
     }
     let start = block[..byte_start].encode_utf16().count();
-    write!(out, "<span data-md-start=\"{start}\">{}</span>", escape_html(text))
-        .expect("writing into String");
+    write!(
+        out,
+        "<span data-md-start=\"{start}\">{}</span>",
+        escape_html(text)
+    )
+    .expect("writing into String");
 }
 
 fn safe_link(url: &str) -> bool {
@@ -60,8 +64,12 @@ fn inline(out: &mut String, block: &str, line: &str, base: usize, depth: u8) {
                         let href = &rest[label_end + 2..label_end + 2 + end];
                         if !label.is_empty() && safe_link(href) {
                             text_segment(out, block, base + plain, &line[plain..i]);
-                            write!(out, "<a href=\"{}\" rel=\"nofollow noopener noreferrer\">", escape_html(href))
-                                .expect("writing into String");
+                            write!(
+                                out,
+                                "<a href=\"{}\" rel=\"nofollow noopener noreferrer\">",
+                                escape_html(href)
+                            )
+                            .expect("writing into String");
                             inline(out, block, label, base + i + 1, depth + 1);
                             out.push_str("</a>");
                             i += label_end + 3 + end;
@@ -93,8 +101,11 @@ fn inline(out: &mut String, block: &str, line: &str, base: usize, depth: u8) {
                             text_segment(out, block, base + plain, &line[plain..i]);
                             write!(out, "<{tag}>").expect("writing into String");
                             inline(
-                                out, block, &rest[marker.len()..marker.len() + end],
-                                base + i + marker.len(), depth + 1,
+                                out,
+                                block,
+                                &rest[marker.len()..marker.len() + end],
+                                base + i + marker.len(),
+                                depth + 1,
                             );
                             write!(out, "</{tag}>").expect("writing into String");
                             i += marker.len() * 2 + end;
@@ -165,11 +176,15 @@ pub(crate) fn render(source: &str) -> String {
             while i < lines.len() && !lines[i].1.starts_with("\u{60}\u{60}\u{60}") {
                 let (line_start, raw) = lines[i];
                 text_segment(&mut out, source, line_start, raw);
-                if i + 1 < lines.len() { out.push('\n'); }
+                if i + 1 < lines.len() {
+                    out.push('\n');
+                }
                 i += 1;
             }
             out.push_str("</code></pre>");
-            if i < lines.len() { i += 1; }
+            if i < lines.len() {
+                i += 1;
+            }
             continue;
         }
         if let Some((level, prefix)) = heading_prefix(line) {
@@ -183,8 +198,12 @@ pub(crate) fn render(source: &str) -> String {
             write!(out, "<{tag}>").expect("writing into String");
             while i < lines.len() {
                 let (pos, current) = lines[i];
-                let Some((kind, prefix)) = list_prefix(current) else { break };
-                if kind != tag { break; }
+                let Some((kind, prefix)) = list_prefix(current) else {
+                    break;
+                };
+                if kind != tag {
+                    break;
+                }
                 out.push_str("<li>");
                 inline(&mut out, source, &current[prefix..], pos + prefix, 0);
                 out.push_str("</li>");
@@ -196,7 +215,9 @@ pub(crate) fn render(source: &str) -> String {
         if line.starts_with("> ") {
             out.push_str("<blockquote><p>");
             while i < lines.len() && lines[i].1.starts_with("> ") {
-                if i > 0 && lines[i - 1].1.starts_with("> ") { out.push(' '); }
+                if i > 0 && lines[i - 1].1.starts_with("> ") {
+                    out.push(' ');
+                }
                 inline(&mut out, source, &lines[i].1[2..], lines[i].0 + 2, 0);
                 i += 1;
             }
@@ -255,7 +276,9 @@ mod tests {
         let html = render(&huge);
         assert!(html.len() < 51_000);
         assert!(html.starts_with("<p>"));
-        assert!(render("\u{60}\u{60}\u{60}html\n<script>x</script>\n\u{60}\u{60}\u{60}")
-            .contains("&lt;script&gt;"));
+        assert!(
+            render("\u{60}\u{60}\u{60}html\n<script>x</script>\n\u{60}\u{60}\u{60}")
+                .contains("&lt;script&gt;")
+        );
     }
 }
