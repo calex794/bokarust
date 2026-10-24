@@ -23,6 +23,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+      - name: Confirm Rust wasm32 target is installed
+        run: rustup target add wasm32-unknown-unknown --toolchain 1.99.1
       - name: Build real WASM from Rust 1.99 and SHA256-pinned Zig 0.17
         run: bash experiments/front-rust-ui-compare/web-wasm-compare/scripts/build.sh
       - name: Run real Chromium comparisons with byte parity and browser events
