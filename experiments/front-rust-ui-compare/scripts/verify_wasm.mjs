@@ -50,9 +50,9 @@ const html = '<!doctype html><html lang="en"><meta charset="utf-8"><title>WASM p
   '<output id="result" role="status">pending</output></main><script>' +
   'const encoded=' + JSON.stringify(base64) + ';' +
   'const tests=' + JSON.stringify(tests) + ';' +
-  '(async()=>{try {' +
+  '(()=>{try {' +
   'const raw=Uint8Array.from(atob(encoded), c=>c.charCodeAt(0));' +
-  'const {instance}=await WebAssembly.instantiate(raw,{});' +
+  'const module=new WebAssembly.Module(raw);const instance=new WebAssembly.Instance(module,{});' +
   'const f=instance.exports.front_rust_probe_checksum;' +
   'if(typeof f!=="function") throw Error("missing export");' +
   'for(const t of tests) if((f(t.n)>>>0)!==t.expected) throw Error("mismatch "+t.n);' +
