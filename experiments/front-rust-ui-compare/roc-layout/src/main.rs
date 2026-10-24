@@ -1,3 +1,4 @@
+mod phase2;
 use std::hint::black_box;
 use std::time::Instant;
 use std::fs;
@@ -166,6 +167,7 @@ fn measure(){
 fn main(){
  match std::env::args().nth(1).as_deref(){
   Some("--bench")=>measure(),
+  Some("--bench2")=>phase2::run(),
   _=>{verify();drag_verify();cache_verify();println!("PASS: parity, stale generations, no-op, 100-event drag/one undo, cache corruption and reopening");}
  }
 }
