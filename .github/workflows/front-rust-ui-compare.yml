@@ -10,7 +10,7 @@ permissions:
 jobs:
   compare:
     runs-on: ubuntu-24.04
-    timeout-minutes: 55
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
@@ -29,6 +29,7 @@ jobs:
           if-no-files-found: warn
           retention-days: 14
   report:
+    timeout-minutes: 5
     if: always()
     needs: compare
     runs-on: ubuntu-24.04
