@@ -20,7 +20,10 @@ ZIG="$TMP/zig-x86_64-linux-0.17.0/zig"
   echo "ZIG_SHA256=$ZIG_SHA"
   grep -m1 'model name' /proc/cpuinfo || true
 } > "$OUT/toolchain.txt"
+export RUSTUP_TOOLCHAIN=1.99.1
 export CARGO_TARGET_DIR="$RUNNER_TEMP/front-rust-browser-wasm"
+rustup target list --installed
+rustc --version --verbose
 cargo generate-lockfile --manifest-path "$ROOT/rust/Cargo.toml"
 cargo build --manifest-path "$ROOT/rust/Cargo.toml" --release --locked --target wasm32-unknown-unknown
 cargo build --manifest-path "$ROOT/rust/Cargo.toml" --profile speed --locked --target wasm32-unknown-unknown
