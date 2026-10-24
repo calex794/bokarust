@@ -180,5 +180,8 @@ try {
  ws?.close();chrome.kill('SIGTERM');
  await Promise.race([new Promise(ok=>chrome.once('exit',ok)),sleep(1500)]);
  server.closeAllConnections?.();await new Promise(ok=>server.close(ok));
- await rm(dir,{recursive:true,force:true});
+ for(let attempt=0;attempt<5;attempt++) {
+   try {await rm(dir,{recursive:true,force:true,maxRetries:3,retryDelay:250});break;}
+   catch(err){if(attempt===4)console.warn('Chrome profile cleanup:',String(err));else await sleep(300);}
+ }
 }
