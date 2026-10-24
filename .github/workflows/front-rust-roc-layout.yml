@@ -30,9 +30,15 @@ jobs:
           rustc --version > "$P/results/toolchain.txt"
           grep -m1 'model name' /proc/cpuinfo >> "$P/results/toolchain.txt" || true
           cargo run --manifest-path "$P/Cargo.toml" --release -- --bench > "$P/results/metrics.json"
+          cargo run --manifest-path "$P/Cargo.toml" --release -- --bench2 > "$P/results/phase2.json"
+          python3 -m json.tool "$P/results/phase2.json" > "$P/results/phase2.pretty.json"
           python3 -m json.tool "$P/results/metrics.json" > "$P/results/metrics.pretty.json"
           cat "$P/results/metrics.pretty.json"
-          cp "$P/results/metrics.pretty.json" "$GITHUB_STEP_SUMMARY"
+          cat "$P/results/phase2.pretty.json"
+          printf "## Original AoS / SoA results\n\n" >> "$GITHUB_STEP_SUMMARY"
+          cat "$P/results/metrics.pretty.json" >> "$GITHUB_STEP_SUMMARY"
+          printf "\n## Spatial index / preview pooling / cache results\n\n" >> "$GITHUB_STEP_SUMMARY"
+          cat "$P/results/phase2.pretty.json" >> "$GITHUB_STEP_SUMMARY"
       - name: Preserve results even on failure
         if: always()
         uses: actions/upload-artifact@v4
