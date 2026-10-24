@@ -12,7 +12,7 @@ import {gzipSync,brotliCompressSync,constants} from 'node:zlib';
 const root=resolve(dirname(fileURLToPath(import.meta.url)),'..');
 const out=join(root,'results'),site=join(out,'site');
 await mkdir(out,{recursive:true});
-const variants=['rust-small','zig-small','rust-fast','zig-fast'];
+const variants=process.env.WASM_BROWSER_VARIANTS ? process.env.WASM_BROWSER_VARIANTS.split(',') : ['rust-small','zig-small','rust-fast','zig-fast'];
 const stats={};
 for (const v of variants) {
   const assets={},total={raw:0,gzip:0,brotli:0};
