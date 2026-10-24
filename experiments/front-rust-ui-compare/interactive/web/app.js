@@ -123,6 +123,24 @@ canvas.addEventListener('pointerup',event=>{if(!drag)return;drag.dx=Math.round(e
 canvas.addEventListener('wheel',event=>{event.preventDefault();viewport.scale=Math.max(0.25,Math.min(4,viewport.scale*(event.deltaY<0?1.2:1/1.2)));renderBoard();},{passive:false});
 
 const letters=['Ж','z','界','a'];
+// Isolate domain operations from animation frames and DOM painting. Includes ABI
+// overhead and state reset; does not measure text layout or browser GPU.
+function measureDomainOnly(core) {
+  const samples=[]; let finalBoard=0, finalDoc=0;
+  for(let repetition=0;repetition<11;repetition++) {
+    core.reset();
+    const start=performance.now();
+    for(let i=0;i<200;i++) assert(core.boardMove(2,7,-3),'domain board move');
+    for(let i=0;i<200;i++) assert(core.docBold(i % 100),'domain doc toggle');
+    for(let i=0;i<20;i++) {assert(core.boardUndo(),'domain board undo');assert(core.docUndo(),'domain doc undo');}
+    for(let i=0;i<20;i++) {assert(core.boardRedo(),'domain board redo');assert(core.docRedo(),'domain doc redo');}
+    const elapsed=performance.now()-start;
+    finalBoard=core.boardChecksum();finalDoc=core.docChecksum();
+    samples.push(elapsed);
+  }
+  return {operations_per_repeat:480,rounds:11,elapsed:quantiles(samples),
+    board_checksum:finalBoard,document_checksum:finalDoc};
+}
 async function runSuite(mode){
   current=mode==='wasm'?new WASMCore(await loadWasm()):new JSCore();
   current.reset();viewport.x=0;viewport.y=0;viewport.scale=1;drag=null;browserEvents={pointer:0,input:0,composition:0};
@@ -167,7 +185,8 @@ async function runSuite(mode){
     board_checksum:current.boardChecksum(),document_checksum:current.docChecksum(),
     board_revision:current.getBoardRevision(),document_revision:current.getDocRevision(),
     board_drag_input_to_frame:quantiles(boardTimings),document_input_to_frame:quantiles(docTimings),
-    browser_events:browserEvents,wasm_bytes:mode==='wasm'?wasmBytes:null,first_wasm_instantiate_ms:mode==='wasm'?instantiateMs:null};
+    browser_events:browserEvents,wasm_bytes:mode==='wasm'?wasmBytes:null,first_wasm_instantiate_ms:mode==='wasm'?instantiateMs:null,
+    domain_only:measureDomainOnly(current)};
   $('results').textContent=JSON.stringify(result,null,2);
   return result;
 }
