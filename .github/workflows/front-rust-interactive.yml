@@ -1,0 +1,57 @@
+name: FrontRust investigation (Docs and Board browser trace)
+
+on:
+  pull_request:
+    paths:
+      - "experiments/front-rust-ui-compare/interactive/**"
+      - ".github/workflows/front-rust-interactive.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  interactive-paired:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Native history and Unicode tests, and actual WASM build
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE=experiments/front-rust-ui-compare/interactive
+          export CARGO_TARGET_DIR="$RUNNER_TEMP/front-rust-interactive"
+          rustc --version | tee "$RUNNER_TEMP/rust-version.txt"
+          cargo test --manifest-path "$BASE/Cargo.toml" --all-targets
+          cargo build --manifest-path "$BASE/Cargo.toml" --lib --target wasm32-unknown-unknown --release
+          mkdir -p "$BASE/results"
+          cp "$RUNNER_TEMP/rust-version.txt" "$BASE/results/rust-version.txt"
+          cp "$CARGO_TARGET_DIR/wasm32-unknown-unknown/release/front_rust_interactive_probe.wasm" "$BASE/results/core.wasm"
+      - name: Controlled Chromium browser interaction and parity
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE=experiments/front-rust-ui-compare/interactive
+          node --check "$BASE/web/app.js"
+          node --check "$BASE/scripts/chrome.mjs"
+          CHROME="$(command -v google-chrome || command -v google-chrome-stable || command -v chromium || true)"
+          test -n "$CHROME" || { echo "No Chromium browser on runner"; exit 1; }
+          export CHROME
+          "$CHROME" --version | tee "$BASE/results/chrome-version.txt"
+          node "$BASE/scripts/chrome.mjs" --wasm "$BASE/results/core.wasm" --out "$BASE/results/interactive.json"
+          python3 -m json.tool "$BASE/results/interactive.json" > /dev/null
+      - name: Preserve evidence on success or failure
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: front-rust-docs-board-browser
+          path: experiments/front-rust-ui-compare/interactive/results/
+          if-no-files-found: warn
+          retention-days: 30
