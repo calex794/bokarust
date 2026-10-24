@@ -13,7 +13,7 @@ dioxus-view = ["dep:dioxus", "dep:dioxus-ssr"]
 
 [dependencies]
 leptos = { version = "=0.8.22", default-features = false, features = ["ssr"], optional = true }
-dioxus = { version = "=0.7.0", default-features = false, features = ["html"], optional = true }
+dioxus = { version = "=0.7.0", default-features = false, features = ["html", "macro"], optional = true }
 dioxus-ssr = { version = "=0.7.0", optional = true }
 
 [[bin]]
