@@ -47,3 +47,21 @@ Sources:
 - https://docs.rs/leptos/latest/leptos/
 - https://docs.rs/dioxus-ssr/0.7.0/dioxus_ssr/
 - https://app.notion.com/p/40332a84beec81fa968bef062af6e97a
+
+
+## Phase 1b — actual WebAssembly ABI parity (not the real FrontRust)
+
+A standalone Rust export performs the same create / move / undo / redo
+operation and returns a deterministic checksum. GitHub Actions builds
+the *same* Rust scene engine for native Linux and wasm32-unknown-unknown,
+then runs the compiled WASM in Node.js and Chrome headless using
+WebAssembly.instantiate, comparing checksums for 3, 300 and 10000 rectangles.
+Invalid input must return zero. No JavaScript approximation is used.
+
+The test is in .github/workflows/front-rust-wasm-parity.yml.
+Results include WASM byte size, native/WASM checksums and browser DOM evidence.
+
+**Limitations:** The WASM only exercises the state engine, not a real
+Dioxus/Leptos browser application, FrontRust source, canvas renderer,
+user input, SSR hydration or desktop application. Its startup time is
+the Node.js runtime, not a browser cold-load benchmark.

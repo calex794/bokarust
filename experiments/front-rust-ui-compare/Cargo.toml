@@ -1,5 +1,8 @@
 [workspace]
 
+[lib]
+crate-type = ["rlib", "cdylib"]
+
 [package]
 name = "front-rust-ui-compare"
 version = "0.0.1"

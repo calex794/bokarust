@@ -1,5 +1,7 @@
 //! SSR comparison fixture. This is not the actual FrontRust implementation.
+#[cfg(not(target_arch = "wasm32"))]
 use std::hint::black_box;
+#[cfg(not(target_arch = "wasm32"))]
 use std::time::Instant;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -56,6 +58,7 @@ pub fn fixture(count: usize) -> Scene {
     assert_eq!(editor.current, moved);
     moved
 }
+#[cfg(not(target_arch = "wasm32"))]
 pub fn run(label: &str, render: fn(&Scene) -> String) {
     let args: Vec<String> = std::env::args().collect();
     let cmd = args.get(1).map(String::as_str).unwrap_or("--check");
@@ -108,4 +111,43 @@ mod tests {
         assert!(!e.undo());
     }
     #[test] fn large_scene() { assert_eq!(fixture(300).rects.len(),300); }
+}
+
+
+/// FNV-style checksum of the canonical command result.
+/// This is deliberately *not* an ABI for FrontRust: a temporary parity probe.
+pub fn scene_checksum(scene: &Scene) -> u32 {
+    let mut hash = 2_166_136_261_u32;
+    let values = std::iter::once(scene.revision as u32).chain(
+        scene.rects.iter().flat_map(|r| [r.id as u32, r.x as u32, r.y as u32])
+    );
+    for value in values {
+        hash ^= value;
+        hash = hash.wrapping_mul(16_777_619_u32);
+    }
+    hash
+}
+
+/// Operates on the same Rust fixture in native and a real wasm32 build.
+/// A result of 0 indicates invalid input, not a valid document hash.
+#[no_mangle]
+pub extern "C" fn front_rust_probe_checksum(count: u32) -> u32 {
+    if !(3..=10_000).contains(&count) {
+        return 0;
+    }
+    scene_checksum(&fixture(count as usize))
+}
+
+#[cfg(test)]
+mod checksum_tests {
+    use super::*;
+    #[test]
+    fn native_checksum_matches_export() {
+        for n in [3, 300, 10_000] {
+            assert_ne!(front_rust_probe_checksum(n), 0);
+            assert_eq!(scene_checksum(&fixture(n as usize)), front_rust_probe_checksum(n));
+        }
+        assert_eq!(front_rust_probe_checksum(2), 0);
+        assert_eq!(front_rust_probe_checksum(10_001), 0);
+    }
 }

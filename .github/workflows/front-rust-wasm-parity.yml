@@ -1,0 +1,61 @@
+name: FrontRust investigation (real Rust/WASM ABI parity)
+
+on:
+  pull_request:
+    paths:
+      - "experiments/front-rust-ui-compare/**"
+      - ".github/workflows/front-rust-wasm-parity.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  wasm-parity:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Build same scene core as native binary and real wasm32 module
+        shell: bash
+        run: |
+          set -euo pipefail
+          ROOT=experiments/front-rust-ui-compare
+          export CARGO_TARGET_DIR="$RUNNER_TEMP/front-rust-wasm-probe"
+          cargo fetch --manifest-path "$ROOT/Cargo.toml"
+          cargo test --manifest-path "$ROOT/Cargo.toml" --lib --locked
+          cargo build --manifest-path "$ROOT/Cargo.toml" --release --bin checksum --locked
+          cargo build --manifest-path "$ROOT/Cargo.toml" --release --lib --target wasm32-unknown-unknown --locked --no-default-features
+          node "$ROOT/scripts/verify_wasm.mjs" \
+            "$CARGO_TARGET_DIR/wasm32-unknown-unknown/release/front_rust_ui_compare.wasm" \
+            "$CARGO_TARGET_DIR/release/checksum" \
+            "$ROOT/results/wasm"
+      - name: Verify same wasm binary in Chrome without network
+        shell: bash
+        run: |
+          set -euo pipefail
+          OUT=experiments/front-rust-ui-compare/results/wasm
+          CHROME="$(command -v google-chrome || command -v google-chrome-stable || command -v chromium || true)"
+          test -n "$CHROME" || { echo "Chrome not installed on runner"; exit 1; }
+          "$CHROME" --version
+          timeout 40s "$CHROME" --headless=new --no-sandbox --disable-gpu \
+            --disable-dev-shm-usage --disable-background-networking \
+            --virtual-time-budget=5000 --dump-dom \
+            "file://$(realpath "$OUT/wasm-probe.html")" \
+            > "$OUT/browser-dom.html" 2> "$OUT/chrome.log"
+          grep -q 'data-pass="1"' "$OUT/browser-dom.html"
+          echo "PASS: real wasm32 binary matched native Rust in headless Chrome"
+      - name: Preserve results and failing logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: actual-rust-wasm-abi-parity
+          path: experiments/front-rust-ui-compare/results/wasm/
+          if-no-files-found: warn
+          retention-days: 30
