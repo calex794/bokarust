@@ -28,7 +28,7 @@ impl Writer<'_> {
 pub extern "C" fn render_html_rust(dst: *mut u8, cap: usize, count: usize) -> usize {
     if cap == 0 || dst.is_null() || !(3..=10000).contains(&count) { return 0; }
     // Caller guarantees a valid writable non-aliasing byte buffer.
-    let bytes = unsafe { std::slice::from_raw_parts_mut(dst,cap) };
+    let bytes = unsafe { core::slice::from_raw_parts_mut(dst,cap) };
     let mut w=Writer { dst:bytes,pos:0 };
     macro_rules! add { ($x:expr) => {if !w.add($x) {return 0;}}; }
     macro_rules! num { ($x:expr) => {if !w.number($x) {return 0;}}; }
