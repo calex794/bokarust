@@ -26,18 +26,20 @@ const port=server.address().port;
 const chromeBin=process.env.CHROME||['/usr/bin/google-chrome','/usr/bin/google-chrome-stable','/usr/bin/chromium'].find(existsSync);
 if(!chromeBin)throw Error('Install Chrome/Chromium or set CHROME');
 const dir=await mkdtemp(join(tmpdir(),'fr-chrome-'));
-const chrome=spawn(chromeBin,['--headless=new','--no-sandbox','--disable-dev-shm-usage','--disable-background-networking','--disable-extensions','--no-proxy-server','--proxy-bypass-list=<-loopback>','--no-first-run','--no-default-browser-check',`--user-data-dir=${dir}`,'--allow-file-access-from-files','--remote-debugging-port=0','about:blank'],{stdio:'ignore'});
+let chromeStderr='';
+const chrome=spawn(chromeBin,['--headless=new','--no-sandbox','--disable-dev-shm-usage','--disable-background-networking','--disable-extensions','--no-proxy-server','--proxy-bypass-list=<-loopback>','--no-first-run','--no-default-browser-check',`--user-data-dir=${dir}`,'--allow-file-access-from-files','--remote-debugging-port=0','about:blank'],{stdio:['ignore','ignore','pipe']});
+chrome.stderr.on('data',b=>chromeStderr+=b.toString().slice(-10000));
 let ws;
 async function connect(){
   let dport;
   for(let i=0;i<100;i++){if(chrome.exitCode!==null)throw Error(`Chrome exited ${chrome.exitCode}`);
     try {const f=await readFile(join(dir,'DevToolsActivePort'),'utf8');dport=Number(f.split('\n')[0]);if(dport)break;}catch{}await sleep(100);}
-  if(!dport)throw Error('Chrome DevTools did not start');
+  if(!dport)throw Error(`Chrome DevTools did not start; bin=${chromeBin}; exit=${chrome.exitCode}; stderr=${chromeStderr.slice(-6000)}`);
   let target;
   for(let i=0;i<50;i++){
     try{const r=await fetch(`http://127.0.0.1:${dport}/json/list`);target=(await r.json()).find(t=>t.type==='page');if(target)break;}catch{}await sleep(100);
   }
-  if(!target)throw Error('no page target');
+  if(!target)throw Error(`no page target; stderr=${chromeStderr.slice(-3000)}`);
   ws=new WebSocket(target.webSocketDebuggerUrl);
   await new Promise((resolve,reject)=>{ws.addEventListener('open',resolve,{once:true});ws.addEventListener('error',reject,{once:true});});
 }
