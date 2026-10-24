@@ -1,0 +1,20 @@
+[workspace]
+[package]
+name = "front-rust-wasm-browser-probe"
+version = "0.0.1"
+edition = "2021"
+publish = false
+
+[lib]
+crate-type = ["cdylib"]
+
+[profile.release]
+opt-level = "z"
+lto = "fat"
+codegen-units = 1
+panic = "abort"
+strip = "debuginfo"
+
+[profile.speed]
+inherits = "release"
+opt-level = 3

@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Rust vs Zig WASM browser experiment</title>
+<style>
+  body { font: 16px system-ui; margin: 20px; }
+  .toolbar { display: flex; gap: 12px; margin: 15px 0; }
+  button { padding: 10px; }
+  #view section { height: 380px; position: relative; overflow: auto; border: 1px solid #888; }
+  #view .rect { width: 24px; height: 24px; outline: 1px solid #777; }
+</style>
+</head>
+<body data-test-status="loading">
+  <h1>Rust/Zig WebAssembly browser parity</h1>
+  <div class="toolbar">
+    <button type="button" id="count3">Show 3 objects</button>
+    <button type="button" id="count300">Show 300 objects</button>
+  </div>
+  <output id="status" role="status">Loading WASM</output>
+  <div id="view" aria-label="Objects"></div>
+  <script type="module" src="app.mjs"></script>
+</body>
+</html>
