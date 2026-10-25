@@ -12,6 +12,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 static SEQUENCE: AtomicU64 = AtomicU64::new(0);
 const MAX_FILE_BYTES: u64 = 2 * 1024 * 1024;
 
+#[derive(Debug)]
 pub struct Receipt {
     pub board_checksum: u32,
     pub document_checksum: u32,
