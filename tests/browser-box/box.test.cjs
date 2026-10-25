@@ -31,13 +31,29 @@ test("actual browser: author publishes, guest reads, member saves place", {timeo
     await author.locator('[name="display_name"]').fill("Browser Author");
     await author.locator('[name="email"]').fill("browser-"+suffix+"@example.invalid");
     await author.locator('[name="password"]').fill("safe-test-password-123");
+    const csrfToken = await author.locator('input[name="csrf_token"]').inputValue();
+    const storedCookies = await context.cookies(base);
+    const csrfCookie = storedCookies.find(cookie => cookie.name === "bkr-dev-csrf");
+    assert.ok(csrfCookie, "Chromium did not store the registration CSRF cookie");
+    assert.equal(csrfToken, csrfCookie.value, "CSRF cookie and form token disagree");
+    const requests = [];
+    author.on("request", request => {
+      if (request.method() === "POST" && new URL(request.url()).pathname === "/register") {
+        const headers = request.headers();
+        requests.push({
+          origin: headers.origin || "",
+          hasCsrfCookie: (headers.cookie || "").includes("bkr-dev-csrf="),
+          secFetchSite: headers["sec-fetch-site"] || ""
+        });
+      }
+    });
     const [registration] = await Promise.all([
       author.waitForResponse(response => response.request().method() === "POST" &&
         new URL(response.url()).pathname === "/register"),
       author.getByRole("button", {name:"Создать учётную запись"}).click({noWaitAfter:true})
     ]);
     assert.equal(registration.status(), 303,
-      "Registration response: HTTP " + registration.status() + " " +
+      "Registration response: HTTP " + registration.status() + " request=" + JSON.stringify(requests) + " " +
       (await registration.text()).slice(0,500));
     await author.waitForURL("**/me");
 
