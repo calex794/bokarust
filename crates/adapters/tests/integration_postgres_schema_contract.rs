@@ -1,7 +1,6 @@
 //! BKR-41 additive PostgreSQL contract checks.
 //! Uses a disposable database: TEST_DATABASE_URL must never point at production.
 use bokarust_adapters::postgres_accounts::PgAccounts;
-use sqlx::Executor;
 
 #[tokio::test]
 #[ignore = "requires a disposable PostgreSQL database via TEST_DATABASE_URL"]
@@ -50,7 +49,7 @@ async fn integration_bkr41_schema_constraints() {
 
     // A composite FK must prevent cross-book progress, independently of Rust.
     // Use a savepoint so a deliberately failed constraint does not abort the test.
-    tx.execute("SAVEPOINT bkr41_cross_book").await.expect("savepoint");
+    sqlx::query("SAVEPOINT bkr41_cross_book").execute(&mut *tx).await.expect("savepoint");
     let wrong = sqlx::query(
         "INSERT INTO reader_book_positions \
          (user_id,book_id,chapter_id,chapter_no,chapter_revision,version_id,block_index) \
@@ -58,7 +57,7 @@ async fn integration_bkr41_schema_constraints() {
     ).bind(reader).bind(book_b).bind(chapter).bind(version)
         .execute(&mut *tx).await;
     assert!(wrong.is_err(), "cross-book progress must be rejected");
-    tx.execute("ROLLBACK TO SAVEPOINT bkr41_cross_book")
+    sqlx::query("ROLLBACK TO SAVEPOINT bkr41_cross_book").execute(&mut *tx)
         .await.expect("rollback failed statement");
 
     let first_team: i64 = sqlx::query_scalar(
@@ -71,35 +70,35 @@ async fn integration_bkr41_schema_constraints() {
         .bind(first_team).bind(book_a).execute(&mut *tx)
         .await.expect("first active team");
 
-    tx.execute("SAVEPOINT bkr41_team_conflict").await.expect("savepoint");
+    sqlx::query("SAVEPOINT bkr41_team_conflict").execute(&mut *tx).await.expect("savepoint");
     let second_link = sqlx::query(
         "INSERT INTO team_book_links(team_id,book_id) VALUES($1,$2)",
     ).bind(second_team).bind(book_a).execute(&mut *tx).await;
     assert!(second_link.is_err(), "second active team must be rejected");
-    tx.execute("ROLLBACK TO SAVEPOINT bkr41_team_conflict")
+    sqlx::query("ROLLBACK TO SAVEPOINT bkr41_team_conflict").execute(&mut *tx)
         .await.expect("rollback failed statement");
 
     let evt: i64 = sqlx::query_scalar(
         "INSERT INTO outbox_events(aggregate_type,aggregate_id,event_type,dedup_key) \
          VALUES('chapter',$1,'published','bkr41-event-0000001') RETURNING id",
     ).bind(chapter).fetch_one(&mut *tx).await.expect("outbox");
-    tx.execute("SAVEPOINT bkr41_immutable").await.expect("savepoint");
+    sqlx::query("SAVEPOINT bkr41_immutable").execute(&mut *tx).await.expect("savepoint");
     let mutated = sqlx::query("UPDATE outbox_events SET event_type='other' WHERE id=$1")
         .bind(evt).execute(&mut *tx).await;
     assert!(mutated.is_err(), "outbox payload must stay immutable");
-    tx.execute("ROLLBACK TO SAVEPOINT bkr41_immutable")
+    sqlx::query("ROLLBACK TO SAVEPOINT bkr41_immutable").execute(&mut *tx)
         .await.expect("rollback failed statement");
 
     sqlx::query(
         "INSERT INTO durable_jobs(kind,dedup_key,status) \
          VALUES('test','bkr41-task','queued')",
     ).execute(&mut *tx).await.expect("queued job");
-    tx.execute("SAVEPOINT bkr41_job_state").await.expect("savepoint");
+    sqlx::query("SAVEPOINT bkr41_job_state").execute(&mut *tx).await.expect("savepoint");
     let invalid_job = sqlx::query(
         "UPDATE durable_jobs SET status='running' WHERE kind='test' AND dedup_key='bkr41-task'",
     ).execute(&mut *tx).await;
     assert!(invalid_job.is_err(), "running job must have a lease");
-    tx.execute("ROLLBACK TO SAVEPOINT bkr41_job_state")
+    sqlx::query("ROLLBACK TO SAVEPOINT bkr41_job_state").execute(&mut *tx)
         .await.expect("rollback failed statement");
     tx.rollback().await.expect("clean up fixtures");
 }
