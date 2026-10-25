@@ -1,6 +1,8 @@
 //! Rust domain-only probe. Not the FrontRust product or a text layout engine.
 use std::cell::RefCell;
 mod snapshot;
+#[cfg(not(target_arch = "wasm32"))]
+pub mod persistence;
 
 const BOARD_SIZE: usize = 10_000;
 const BLOCKS: usize = 1_000; // 50 pages with 20 synthetic paragraphs each.
