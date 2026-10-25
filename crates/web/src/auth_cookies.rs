@@ -132,9 +132,12 @@ pub(crate) fn private_response<T: IntoResponse>(result: T, cookies: &[String]) -
     response
         .headers_mut()
         .insert(header::CACHE_CONTROL, HeaderValue::from_static("no-store"));
+    // On Chromium, no-referrer can cause form POSTs with Origin: null,
+    // blocking legitimate same-origin registration despite a valid CSRF token.
+    // same-origin retains referer information only within this site.
     response.headers_mut().insert(
         header::REFERRER_POLICY,
-        HeaderValue::from_static("no-referrer"),
+        HeaderValue::from_static("same-origin"),
     );
     response.headers_mut().insert(
         header::X_CONTENT_TYPE_OPTIONS,
@@ -211,6 +214,7 @@ mod tests {
         let headers = response.headers();
         assert_eq!(headers[header::CACHE_CONTROL], "no-store");
         assert_eq!(headers["x-frame-options"], "DENY");
+        assert_eq!(headers[header::REFERRER_POLICY], "same-origin");
         let csp = headers["content-security-policy"].to_str().unwrap();
         assert!(csp.contains("script-src 'none'"));
         assert!(csp.contains("frame-ancestors 'none'"));
