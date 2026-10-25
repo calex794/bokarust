@@ -47,6 +47,50 @@ jobs:
           "$CHROME" --version | tee "$BASE/results/chrome-version.txt"
           node "$BASE/scripts/chrome.mjs" --wasm "$BASE/results/core.wasm" --out "$BASE/results/interactive.json"
           python3 -m json.tool "$BASE/results/interactive.json" > /dev/null
+      - name: Restart a native client and verify atomic disk recovery
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE=experiments/front-rust-ui-compare/interactive
+          export CARGO_TARGET_DIR="$RUNNER_TEMP/front-rust-interactive"
+          cargo build --manifest-path "$BASE/Cargo.toml" --bin snapshot-cli
+          CLI="$CARGO_TARGET_DIR/debug/snapshot-cli"
+          D="$(mktemp -d)"
+          trap 'rm -rf "$D"' EXIT
+          "$CLI" seed "$D/data.frst" | tee "$BASE/results/disk-initial.json"
+          "$CLI" inspect "$D/data.frst" | tee "$BASE/results/restarted.json"
+          "$CLI" export "$D/data.frst" "$D/download.frst"
+          "$CLI" import "$D/replica.frst" "$D/download.frst" | tee "$BASE/results/replica.json"
+          cmp "$D/data.frst" "$D/replica.frst"
+          "$CLI" mutate "$D/data.frst" | tee "$BASE/results/updated.json"
+          cp "$D/data.frst" "$D/stable-copy.frst"
+          if "$CLI" interrupt "$D/data.frst"; then
+            echo "ERROR: interrupted persistence unexpectedly succeeded"
+            exit 1
+          fi
+          cmp "$D/data.frst" "$D/stable-copy.frst"
+          "$CLI" inspect "$D/data.frst" | tee "$BASE/results/recovered.json"
+          cp "$D/data.frst" "$D/corrupted.frst"
+          printf x | dd of="$D/corrupted.frst" bs=1 seek=40 count=1 conv=notrunc status=none
+          if "$CLI" import "$D/data.frst" "$D/corrupted.frst"; then
+            echo "ERROR: corrupted snapshot unexpectedly replaced current file"
+            exit 1
+          fi
+          cmp "$D/data.frst" "$D/stable-copy.frst"
+          python3 - "$BASE/results" <<'PY'
+          import json,sys
+          from pathlib import Path
+          p=Path(sys.argv[1])
+          a=json.loads((p/'disk-initial.json').read_text())
+          b=json.loads((p/'restarted.json').read_text())
+          c=json.loads((p/'replica.json').read_text())
+          d=json.loads((p/'updated.json').read_text())
+          e=json.loads((p/'recovered.json').read_text())
+          assert a==b==c, (a,b,c)
+          assert d==e and d['board_revision']==a['board_revision']+1
+          assert d['document_revision']==a['document_revision']+1
+          print('PASS: separate native processes, replica import, interrupt and invalid snapshot are safe')
+          PY
       - name: Preserve evidence on success or failure
         if: always()
         uses: actions/upload-artifact@v4
