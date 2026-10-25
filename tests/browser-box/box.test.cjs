@@ -70,6 +70,7 @@ test("actual browser: author publishes, guest reads, member saves place", {timeo
     await browser.close();
     await guest.close();
     await db.query("DELETE FROM reader_book_positions WHERE book_id IN (SELECT id FROM books WHERE source_identity=$1)",["e2e:"+suffix]);
+    await db.query("DELETE FROM books WHERE source_identity=$1",["e2e:"+suffix]);
     await db.query("DELETE FROM users WHERE email_normalized=$1",["browser-"+suffix+"@example.invalid"]);
     await db.end();
   }
