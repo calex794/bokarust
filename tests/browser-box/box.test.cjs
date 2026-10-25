@@ -76,8 +76,13 @@ test("actual browser: author publishes, guest reads, member saves place", {timeo
     const draftResponse=await guestPage.goto("/reader/"+hidden.rows[0].id);
     assert.equal(draftResponse.status(),404);
   } finally {
-    await browser.close();
-    await guest.close();
-    // The isolated CI database is disposed of after the job; it is not production.\n    await db.end();
+    try {
+      await guest.close();
+      await context.close();
+      await browser.close();
+    } finally {
+      // The isolated CI database is disposed of after the job; never production.
+      await db.end();
+    }
   }
 });
