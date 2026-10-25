@@ -1,0 +1,76 @@
+name: Real browser box
+
+on:
+  pull_request:
+    paths:
+      - "crates/**"
+      - "tests/browser-box/**"
+      - ".github/workflows/browser-box.yml"
+      - "Cargo.toml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  browser-box:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_DB: bokarust_ci
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: ci-only-password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d bokarust_ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 15
+    env:
+      DATABASE_URL: postgres://postgres:ci-only-password@127.0.0.1:5432/bokarust_ci
+      TEST_DATABASE_URL: postgres://postgres:ci-only-password@127.0.0.1:5432/bokarust_ci
+      BOKARUST_INSECURE_COOKIES: "1"
+      BOKARUST_PUBLIC_ORIGIN: http://127.0.0.1:3000
+      BOKARUST_LISTEN_ADDR: 127.0.0.1:3000
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - uses: browser-actions/setup-chrome@v1
+        id: chrome
+        with:
+          chrome-version: stable
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Install browser test dependencies
+        working-directory: tests/browser-box
+        run: npm install --no-audit --no-fund
+      - name: Start Rust server
+        run: |
+          cargo build --locked -p bokarust-web || cargo build -p bokarust-web
+          (cargo run -p bokarust-web > /tmp/bookarust-server.log 2>&1 & echo $! > /tmp/bookarust-server.pid)
+          for attempt in $(seq 1 60); do
+            if curl --fail --silent http://127.0.0.1:3000/healthz >/dev/null; then exit 0; fi
+            sleep 2
+          done
+          cat /tmp/bookarust-server.log
+          exit 1
+      - name: Test browser against real PostgreSQL
+        working-directory: tests/browser-box
+        env:
+          CHROMIUM_PATH: ${{ steps.chrome.outputs.chrome-path }}
+        run: timeout --signal=TERM --kill-after=10s 120s npm test
+      - name: Print server log on failure
+        if: failure()
+        run: cat /tmp/bookarust-server.log || true
+      - name: Stop server
+        if: always()
+        run: |
+          if test -f /tmp/bookarust-server.pid; then kill "$(cat /tmp/bookarust-server.pid)" || true; fi

@@ -1,0 +1,13 @@
+{
+  "name": "bokarust-browser-box",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Real Chromium + PostgreSQL smoke test of the working reader and author path",
+  "scripts": {
+    "test": "node --test --test-reporter=spec box.test.cjs"
+  },
+  "dependencies": {
+    "pg": "8.16.3",
+    "playwright-core": "1.56.1"
+  }
+}
