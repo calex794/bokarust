@@ -116,6 +116,7 @@ jobs:
           cp "$D/client-b-base.frst" "$D/client-b-proposal.frst"
           "$CLI" mutate "$D/client-a-proposal.frst" > /dev/null
           "$CLI" mutate "$D/client-b-proposal.frst" > /dev/null
+          "$CLI" mutate "$D/client-b-proposal.frst" > /dev/null  # distinct proposal, not exact retry
           "$NET" cas "$ADDR" "$D/client-a-base.frst" "$D/client-a-proposal.frst" | tee "$BASE/results/net-applied.txt"
           if "$NET" cas "$ADDR" "$D/client-b-base.frst" "$D/client-b-proposal.frst" > "$BASE/results/net-stale.txt" 2>&1; then echo "stale write accepted"; exit 1; fi
           grep -q CONFLICT "$BASE/results/net-stale.txt"
