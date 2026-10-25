@@ -36,7 +36,6 @@ jobs:
       BOKARUST_INSECURE_COOKIES: "1"
       BOKARUST_PUBLIC_ORIGIN: http://127.0.0.1:3000
       BOKARUST_LISTEN_ADDR: 127.0.0.1:3000
-      CHROMIUM_PATH: /usr/bin/google-chrome
     steps:
       - uses: actions/checkout@v4
         with:
@@ -44,6 +43,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
       - uses: browser-actions/setup-chrome@v1
+        id: chrome
         with:
           chrome-version: stable
       - uses: actions/setup-node@v4
@@ -64,6 +64,8 @@ jobs:
           exit 1
       - name: Test browser against real PostgreSQL
         working-directory: tests/browser-box
+        env:
+          CHROMIUM_PATH: ${{ steps.chrome.outputs.chrome-path }}
         run: npm test
       - name: Print server log on failure
         if: failure()
