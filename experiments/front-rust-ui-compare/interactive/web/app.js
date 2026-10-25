@@ -191,3 +191,80 @@ async function runSuite(mode){
   return result;
 }
 window.runSuite=runSuite;
+
+const SNAP_HEADER=24, SNAP_LIMIT=2*1024*1024;
+function fnvBytes(bytes){let h=FNV_SEED;for(const x of bytes)h=mix(h,x);return h>>>0;}
+function encodeSnapshot(core){
+  const positions=core.getPositions(), blocks=core.view(0,BLOCK_N);
+  const encoded=blocks.map(b=>encoder.encode(b.text));
+  const size=SNAP_HEADER+positions.length*4+encoded.reduce((s,b)=>s+5+b.length,0)+4;
+  if(size>SNAP_LIMIT)throw Error('snapshot oversized');
+  const buf=new ArrayBuffer(size),v=new DataView(buf),raw=new Uint8Array(buf);let at=0;
+  for(const b of [70,82,83,84,1,0,0,0])raw[at++]=b;
+  for(const n of [BOARD_N,BLOCK_N,core.getBoardRevision(),core.getDocRevision()]){v.setUint32(at,n,true);at+=4;}
+  for(const n of positions){v.setInt32(at,n,true);at+=4;}
+  for(let i=0;i<blocks.length;i++){raw[at++]=blocks[i].bold?1:0;v.setUint32(at,encoded[i].length,true);at+=4;raw.set(encoded[i],at);at+=encoded[i].length;}
+  if(at!==size-4)throw Error('bad snapshot writer length');
+  v.setUint32(at,fnvBytes(raw.subarray(0,at)),true);return raw;
+}
+function decodeSnapshot(bytes){
+  if(bytes.length<SNAP_HEADER+4||bytes.length>SNAP_LIMIT)return null;
+  const v=new DataView(bytes.buffer,bytes.byteOffset,bytes.byteLength);let at=0;
+  const take=n=>{if(n<0||at+n>bytes.length-4)throw Error('truncated');const old=at;at+=n;return old;};
+  try{
+    if(String.fromCharCode(...bytes.subarray(0,4))!=='FRST'||bytes[4]!==1||bytes[5]||bytes[6]||bytes[7])return null;
+    at=8;
+    const count=v.getUint32(take(4),true),blockCount=v.getUint32(take(4),true);
+    if(count!==BOARD_N||blockCount!==BLOCK_N)return null;
+    const boardRev=v.getUint32(take(4),true),docRev=v.getUint32(take(4),true);
+    const xy=new Int32Array(count*2);
+    for(let i=0;i<xy.length;i++)xy[i]=v.getInt32(take(4),true);
+    const blocks=[];
+    for(let i=0;i<blockCount;i++){
+      const flag=bytes[take(1)];if(flag>1)return null;
+      const len=v.getUint32(take(4),true);if(len>16384)return null;
+      const text=new TextDecoder('utf-8',{fatal:true}).decode(bytes.subarray(take(len),at));
+      blocks.push({bold:!!flag,text});
+    }
+    if(at!==bytes.length-4||fnvBytes(bytes.subarray(0,at))!==v.getUint32(at,true))return null;
+    return {xy,blocks,boardRev,docRev};
+  }catch{return null;}
+}
+JSCore.prototype.exportSnapshot=function(){return encodeSnapshot(this);};
+JSCore.prototype.restoreSnapshot=function(bytes){
+  const decoded=decodeSnapshot(bytes);if(!decoded)return false;
+  this.xy=decoded.xy;this.blocks=decoded.blocks;
+  this.boardRev=decoded.boardRev;this.docRev=decoded.docRev;
+  this.boardPast=[];this.boardFuture=[];this.docPast=[];this.docFuture=[];
+  return true;
+};
+WASMCore.prototype.exportSnapshot=function(){
+  const ptr=this.w.fr_snapshot_ptr(),len=this.w.fr_snapshot_len();
+  return new Uint8Array(this.w.memory.buffer,ptr,len).slice();
+};
+WASMCore.prototype.restoreSnapshot=function(bytes){
+  const ptr=this.w.fr_import_ptr(bytes.length);if(!ptr)return false;
+  new Uint8Array(this.w.memory.buffer,ptr,bytes.length).set(bytes);
+  return !!this.w.fr_restore(bytes.length);
+};
+async function verifySnapshotInterop(){
+  const js=new JSCore(),wasm=new WASMCore(await loadWasm());
+  js.boardMove(2,11,-5);js.docInsert(0,10,'界'.codePointAt(0));js.docBold(0);
+  const jsBytes=js.exportSnapshot();
+  assert(wasm.restoreSnapshot(jsBytes),'Rust rejected JS snapshot');
+  assert(wasm.boardChecksum()===js.boardChecksum()&&wasm.docChecksum()===js.docChecksum(),'JS to WASM state mismatch');
+  const wasmBytes=wasm.exportSnapshot();
+  assert(jsBytes.length===wasmBytes.length&&jsBytes.every((b,i)=>wasmBytes[i]===b),'noncanonical snapshot');
+  js.reset();
+  assert(js.restoreSnapshot(wasmBytes),'JS rejected WASM snapshot');
+  assert(js.boardChecksum()===wasm.boardChecksum()&&js.docChecksum()===wasm.docChecksum(),'WASM to JS state mismatch');
+  const stable=[js.boardChecksum(),js.docChecksum(),wasm.boardChecksum(),wasm.docChecksum()];
+  for(const broken of [new Uint8Array(wasmBytes.subarray(0,wasmBytes.length-1)),(()=>{const x=wasmBytes.slice();x[35]^=8;return x;})(),(()=>{const x=wasmBytes.slice();x[4]=2;return x;})()]){
+    assert(!js.restoreSnapshot(broken),'JS accepted invalid snapshot');
+    assert(!wasm.restoreSnapshot(broken),'WASM accepted invalid snapshot');
+    assert([js.boardChecksum(),js.docChecksum(),wasm.boardChecksum(),wasm.docChecksum()].every((n,i)=>n===stable[i]),'invalid snapshot mutated state');
+  }
+  assert(!js.boardUndo()&&!js.docUndo()&&!wasm.boardUndo()&&!wasm.docUndo(),'history leaked after restore');
+  return {snapshot_bytes:wasmBytes.length,board_checksum:stable[0],document_checksum:stable[1],corrupt_samples_rejected:3,version:1};
+}
+window.verifySnapshotInterop=verifySnapshotInterop;
