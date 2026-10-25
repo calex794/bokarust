@@ -64,6 +64,8 @@ try{
   const runs=[];
   for(const mode of rounds){const r=await evaluate(`window.runSuite(${JSON.stringify(mode)})`);if(!r?.board_checksum||!r?.document_checksum)throw Error(`Invalid result: ${JSON.stringify(r)}`);runs.push(r);
     console.log(`${mode}: board hash ${r.board_checksum}; docs hash ${r.document_checksum}; board p95 ${r.board_drag_input_to_frame.p95_ms}ms; text p95 ${r.document_input_to_frame.p95_ms}ms`);}
+  const snapshots=jsOnly?null:await evaluate('window.verifySnapshotInterop()');
+  if(snapshots)console.log(`PASS snapshot interop: ${JSON.stringify(snapshots)}`);
   const baseline=runs.find(r=>r.mode==='js');
   for(const run of runs){for(const key of ['board_checksum','document_checksum','board_revision','document_revision','visible_board_objects','dom_rows','domain_only.board_checksum','domain_only.document_checksum']){
       const read=(obj,path)=>path.split('.').reduce((v,part)=>v?.[part],obj);
@@ -72,7 +74,7 @@ try{
   if(!jsOnly&&runs.filter(x=>x.mode==='wasm').length!==3)throw Error('Missing WASM runs');
   const summary={};for(const mode of ['js','wasm']){const rs=runs.filter(r=>r.mode===mode);if(!rs.length)continue;
     summary[mode]={board_input_to_frame_p95_median_ms:percentile(rs.map(r=>r.board_drag_input_to_frame.p95_ms),0.5),doc_input_to_frame_p95_median_ms:percentile(rs.map(r=>r.document_input_to_frame.p95_ms),0.5),wasm_bytes:rs[0].wasm_bytes,domain_only_p95_median_ms:percentile(rs.map(r=>r.domain_only.elapsed.p95_ms),0.5)};}
-  await writeFile(output,JSON.stringify({environment:{userAgent:await evaluate('navigator.userAgent'),node:process.version,chrome:await evaluate('navigator.userAgentData?.brands?.map(x=>x.brand+" "+x.version).join(", ") ?? navigator.userAgent')},fixture:{board_objects:10000,paragraphs:1000,pages:50},scope:'Synthetic pointer/InputEvent, same JS DOM/Canvas paint, domain-core difference ONLY; not FrontRust, Leptos or Dioxus web comparison',runs,summary},null,2));
+  await writeFile(output,JSON.stringify({environment:{userAgent:await evaluate('navigator.userAgent'),node:process.version,chrome:await evaluate('navigator.userAgentData?.brands?.map(x=>x.brand+" "+x.version).join(", ") ?? navigator.userAgent')},fixture:{board_objects:10000,paragraphs:1000,pages:50},snapshot_interop:snapshots,scope:'Synthetic pointer/InputEvent, same JS DOM/Canvas paint, domain-core difference ONLY; not FrontRust, Leptos or Dioxus web comparison',runs,summary},null,2));
   console.log(`PASS browser trace/parity: ${output}`);
 }finally{
   for(const p of pending.values()){clearTimeout(p.timer);p.reject(Error('closing CDP'));}pending.clear();
