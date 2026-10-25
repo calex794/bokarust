@@ -31,7 +31,16 @@ test("actual browser: author publishes, guest reads, member saves place", {timeo
     await author.locator('[name="display_name"]').fill("Browser Author");
     await author.locator('[name="email"]').fill("browser-"+suffix+"@example.invalid");
     await author.locator('[name="password"]').fill("safe-test-password-123");
-    await Promise.all([author.waitForURL("**/me"),author.getByRole("button",{name:"Создать учётную запись"}).click()]);
+    const [registration] = await Promise.all([
+      author.waitForResponse(response => response.request().method() === "POST" &&
+        new URL(response.url()).pathname === "/register"),
+      author.getByRole("button", {name:"Создать учётную запись"}).click({noWaitAfter:true})
+    ]);
+    assert.equal(registration.status(), 303,
+      "Registration response: HTTP " + registration.status() + " " +
+      (await registration.text()).slice(0,500));
+    await author.waitForURL("**/me");
+
     assert.match(await author.locator("body").innerText(),/Browser Author/);
     await author.goto("/books/new");
     await author.locator('[name="source_identity"]').fill("e2e:"+suffix);
