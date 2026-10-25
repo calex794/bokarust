@@ -91,6 +91,55 @@ jobs:
           assert d['document_revision']==a['document_revision']+1
           print('PASS: separate native processes, replica import, interrupt and invalid snapshot are safe')
           PY
+      - name: Two TCP clients, revision conflict, lost ACK, restart and recovery
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE=experiments/front-rust-ui-compare/interactive
+          export CARGO_TARGET_DIR="$RUNNER_TEMP/front-rust-interactive"
+          cargo build --manifest-path "$BASE/Cargo.toml" --bin snapshot-cli --bin snapshot-net
+          CLI="$CARGO_TARGET_DIR/debug/snapshot-cli"
+          NET="$CARGO_TARGET_DIR/debug/snapshot-net"
+          D="$(mktemp -d)"
+          SERVER_PID=""
+          cleanup() { if [ -n "$SERVER_PID" ]; then kill "$SERVER_PID" 2>/dev/null || true; wait "$SERVER_PID" 2>/dev/null || true; fi; rm -rf "$D"; }
+          trap cleanup EXIT
+          "$CLI" seed "$D/server.frst" > "$BASE/results/net-seed.json"
+          "$NET" serve "$D/server.frst" "$D/ready" > "$D/server.log" 2>&1 &
+          SERVER_PID=$!
+          for i in $(seq 1 100); do test -s "$D/ready" && break; kill -0 "$SERVER_PID"; sleep 0.1; done
+          test -s "$D/ready"
+          ADDR="$(cat "$D/ready")"
+          "$NET" get "$ADDR" "$D/client-a-base.frst"
+          "$NET" get "$ADDR" "$D/client-b-base.frst"
+          cp "$D/client-a-base.frst" "$D/client-a-proposal.frst"
+          cp "$D/client-b-base.frst" "$D/client-b-proposal.frst"
+          "$CLI" mutate "$D/client-a-proposal.frst" > /dev/null
+          "$CLI" mutate "$D/client-b-proposal.frst" > /dev/null
+          "$NET" cas "$ADDR" "$D/client-a-base.frst" "$D/client-a-proposal.frst" | tee "$BASE/results/net-applied.txt"
+          if "$NET" cas "$ADDR" "$D/client-b-base.frst" "$D/client-b-proposal.frst" > "$BASE/results/net-stale.txt" 2>&1; then echo "stale write accepted"; exit 1; fi
+          grep -q CONFLICT "$BASE/results/net-stale.txt"
+          "$NET" cas "$ADDR" "$D/client-a-base.frst" "$D/client-a-proposal.frst" | tee "$BASE/results/net-replay.txt"
+          grep -q REPLAY "$BASE/results/net-replay.txt"
+          "$NET" get "$ADDR" "$D/fresh-base.frst"
+          cp "$D/fresh-base.frst" "$D/fresh-proposal.frst"
+          "$CLI" mutate "$D/fresh-proposal.frst" > /dev/null
+          if "$NET" drop-ack "$ADDR" "$D/fresh-base.frst" "$D/fresh-proposal.frst" > "$BASE/results/net-ack-lost.txt" 2>&1; then echo "lost ACK incorrectly reported successful"; exit 1; fi
+          grep -q ACK_LOST "$BASE/results/net-ack-lost.txt"
+          "$NET" cas "$ADDR" "$D/fresh-base.frst" "$D/fresh-proposal.frst" | tee "$BASE/results/net-ack-replay.txt"
+          grep -q REPLAY "$BASE/results/net-ack-replay.txt"
+          "$NET" get "$ADDR" "$D/before-restart.frst"
+          kill "$SERVER_PID"; wait "$SERVER_PID" 2>/dev/null || true; SERVER_PID=""
+          rm "$D/ready"
+          "$NET" serve "$D/server.frst" "$D/ready" > "$D/restart.log" 2>&1 &
+          SERVER_PID=$!
+          for i in $(seq 1 100); do test -s "$D/ready" && break; kill -0 "$SERVER_PID"; sleep 0.1; done
+          test -s "$D/ready"
+          ADDR="$(cat "$D/ready")"
+          "$NET" get "$ADDR" "$D/after-restart.frst"
+          cmp "$D/before-restart.frst" "$D/after-restart.frst"
+          cmp "$D/server.frst" "$D/after-restart.frst"
+          echo "PASS: TCP CAS conflict, exact replay, lost ACK and restart"
       - name: Preserve evidence on success or failure
         if: always()
         uses: actions/upload-artifact@v4
