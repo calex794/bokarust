@@ -1,0 +1,52 @@
+name: FrontRust WASM size (std versus no_std)
+on:
+  pull_request:
+    paths:
+      - "experiments/front-rust-ui-compare/web-wasm-compare/**"
+      - "experiments/front-rust-ui-compare/zig-kernel/render.rs"
+      - ".github/workflows/front-rust-wasm-size-audit.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  audit:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@1.99.1
+        with:
+          targets: wasm32-unknown-unknown
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Build Rust no_std and compare binary sections against Rust std and Zig
+        shell: bash
+        run: |
+          set -euo pipefail
+          rustup target add wasm32-unknown-unknown --toolchain 1.99.1
+          ROOT=experiments/front-rust-ui-compare/web-wasm-compare
+          bash "$ROOT/scripts/build.sh"
+          export RUSTUP_TOOLCHAIN=1.99.1
+          export CARGO_TARGET_DIR="$RUNNER_TEMP/front-rust-nostd"
+          cargo generate-lockfile --manifest-path "$ROOT/no-std/Cargo.toml"
+          for MODE in small fast; do
+            if [ "$MODE" = small ]; then PROFILE=release; else PROFILE=speed; fi
+            cargo build --manifest-path "$ROOT/no-std/Cargo.toml" --locked --profile "$PROFILE" --target wasm32-unknown-unknown
+            DEST="$ROOT/results/site/rust-nostd-$MODE"
+            mkdir -p "$DEST"
+            cp "$CARGO_TARGET_DIR/wasm32-unknown-unknown/$PROFILE/front_rust_no_std_wasm_probe.wasm" "$DEST/kernel.wasm"
+            cp "$ROOT/web/index.html" "$DEST/index.html"
+            cp "$ROOT/web/app.mjs" "$DEST/app.mjs"
+          done
+          python3 "$ROOT/scripts/size-audit.py" "$ROOT/results/site"
+          WASM_BROWSER_VARIANTS=rust-small,rust-fast,rust-nostd-small,rust-nostd-fast,zig-small,zig-fast node "$ROOT/scripts/chrome.mjs"
+          python3 "$ROOT/scripts/compare-audit.py" "$ROOT/results"
+      - name: Preserve section sizes and browser output
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: front-rust-wasm-std-nostd-audit
+          path: experiments/front-rust-ui-compare/web-wasm-compare/results/
+          retention-days: 30
+          if-no-files-found: warn

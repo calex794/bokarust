@@ -1,0 +1,39 @@
+name: FrontRust research (Rust versus Zig browser WASM)
+
+on:
+  pull_request:
+    paths:
+      - "experiments/front-rust-ui-compare/web-wasm-compare/**"
+      - "experiments/front-rust-ui-compare/zig-kernel/render.*"
+      - ".github/workflows/front-rust-browser-wasm-compare.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  wasm-browser:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@1.99.1
+        with:
+          targets: wasm32-unknown-unknown
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Confirm Rust wasm32 target is installed
+        run: rustup target add wasm32-unknown-unknown --toolchain 1.99.1
+      - name: Build real WASM from Rust 1.99 and SHA256-pinned Zig 0.17
+        run: bash experiments/front-rust-ui-compare/web-wasm-compare/scripts/build.sh
+      - name: Run real Chromium comparisons with byte parity and browser events
+        run: node experiments/front-rust-ui-compare/web-wasm-compare/scripts/chrome.mjs
+      - name: Preserve packages and raw evidence even on failure
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: rust-zig-browser-wasm-bundles
+          path: experiments/front-rust-ui-compare/web-wasm-compare/results/
+          retention-days: 30
+          if-no-files-found: warn

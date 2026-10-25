@@ -1,0 +1,49 @@
+name: FrontRust Roc architecture test (SoA arenas and cache)
+
+on:
+  pull_request:
+    paths:
+      - "experiments/front-rust-ui-compare/roc-layout/**"
+      - ".github/workflows/front-rust-roc-layout.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  memory-layout:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Unit and scenario acceptance tests
+        run: |
+          cargo test --manifest-path experiments/front-rust-ui-compare/roc-layout/Cargo.toml --all-targets --verbose
+          cargo run --manifest-path experiments/front-rust-ui-compare/roc-layout/Cargo.toml --release -- --check
+      - name: Matched AoS/SoA measurements
+        shell: bash
+        run: |
+          set -euo pipefail
+          P=experiments/front-rust-ui-compare/roc-layout
+          mkdir -p "$P/results"
+          rustc --version > "$P/results/toolchain.txt"
+          grep -m1 'model name' /proc/cpuinfo >> "$P/results/toolchain.txt" || true
+          cargo run --manifest-path "$P/Cargo.toml" --release -- --bench > "$P/results/metrics.json"
+          cargo run --manifest-path "$P/Cargo.toml" --release -- --bench2 > "$P/results/phase2.json"
+          python3 -m json.tool "$P/results/phase2.json" > "$P/results/phase2.pretty.json"
+          python3 -m json.tool "$P/results/metrics.json" > "$P/results/metrics.pretty.json"
+          cat "$P/results/metrics.pretty.json"
+          cat "$P/results/phase2.pretty.json"
+          printf "## Original AoS / SoA results\n\n" >> "$GITHUB_STEP_SUMMARY"
+          cat "$P/results/metrics.pretty.json" >> "$GITHUB_STEP_SUMMARY"
+          printf "\n## Spatial index / preview pooling / cache results\n\n" >> "$GITHUB_STEP_SUMMARY"
+          cat "$P/results/phase2.pretty.json" >> "$GITHUB_STEP_SUMMARY"
+      - name: Preserve results even on failure
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: front-rust-roc-aos-soa
+          path: experiments/front-rust-ui-compare/roc-layout/results/
+          if-no-files-found: warn
+          retention-days: 30

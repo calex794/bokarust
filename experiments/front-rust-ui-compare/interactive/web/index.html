@@ -1,0 +1,9 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>FrontRust interactive comparison — research, not product</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>body{font:14px system-ui;margin:14px}main{display:grid;grid-template-columns:1fr 1fr;gap:18px}section{min-width:0}canvas{display:block;border:1px solid #aaa;width:100%;max-width:850px;height:500px}.docs{height:500px;overflow:auto;border:1px solid #aaa}.para{padding:4px 8px}input,button{margin:5px}pre{white-space:pre-wrap}</style></head><body>
+<h1>FrontRust comparison — interactive browser research</h1>
+<p>10,000 shapes and 50 pages / 1,000 paragraphs. Same browser renderer; JS domain vs Rust/WASM domain. NOT Leptos/Dioxus/FrontRust performance.</p>
+<main><section><h2>Board</h2><canvas id="board" width="850" height="500" aria-label="Interactive board with 10,000 rectangles" role="img"></canvas><p id="board-summary" aria-live="polite"></p></section>
+<section><h2>Document</h2><label>Insert text into first paragraph: <input id="doc-input" aria-label="Document editing input" autocomplete="off"></label><button id="bold" type="button">Toggle bold</button><div class="docs" id="docs" aria-label="Virtualized 50-page text document" role="region"></div><p id="doc-summary" aria-live="polite"></p></section></main>
+<pre id="results">Benchmark not started</pre><script type="module" src="./app.js"></script></body></html>

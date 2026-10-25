@@ -1,0 +1,33 @@
+name: FrontRust comparison (paired native SSR)
+
+on:
+  pull_request:
+    paths:
+      - "experiments/front-rust-ui-compare/**"
+      - ".github/workflows/front-rust-ui-paired.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: front-rust-paired-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  matched-comparison:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Shared-runner build, parity check and repeated benchmarks
+        run: python3 experiments/front-rust-ui-compare/scripts/paired.py
+      - name: Upload complete evidence, including failed runs
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: paired-native-ssr-results
+          path: experiments/front-rust-ui-compare/results/paired/
+          retention-days: 30
+          if-no-files-found: warn

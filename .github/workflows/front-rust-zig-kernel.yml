@@ -1,0 +1,26 @@
+name: FrontRust lab (Zig vs Rust HTML kernel)
+on:
+  pull_request:
+    paths:
+      - "experiments/front-rust-ui-compare/zig-kernel/**"
+      - ".github/workflows/front-rust-zig-kernel.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  matched-kernel:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@1.99.1
+      - name: Compare pinned Zig 0.17 and Rust 1.99 on same inputs
+        run: bash experiments/front-rust-ui-compare/zig-kernel/run.sh
+      - name: Save byte parity, build and benchmark reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: zig-rust-html-kernel
+          path: experiments/front-rust-ui-compare/zig-kernel/results/
+          if-no-files-found: warn
+          retention-days: 30

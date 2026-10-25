@@ -1,0 +1,43 @@
+name: FrontRust comparison (SSR first stage)
+on:
+  pull_request:
+    paths:
+      - "experiments/front-rust-ui-compare/**"
+      - ".github/workflows/front-rust-ui-compare.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  compare:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        variant: [rust-baseline, leptos-ssr, dioxus-ssr]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Compile and measure
+        run: python3 experiments/front-rust-ui-compare/scripts/measure.py ${{ matrix.variant }}
+      - name: Save results even on failure
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: results-${{ matrix.variant }}
+          path: experiments/front-rust-ui-compare/results/${{ matrix.variant }}/
+          if-no-files-found: warn
+          retention-days: 14
+  report:
+    timeout-minutes: 5
+    if: always()
+    needs: compare
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: results-*
+          path: .results
+      - name: Summarize measurements
+        run: python3 experiments/front-rust-ui-compare/scripts/summarize.py

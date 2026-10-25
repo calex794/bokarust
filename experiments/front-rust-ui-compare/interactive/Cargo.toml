@@ -1,0 +1,14 @@
+[workspace]
+
+[package]
+name = "front-rust-interactive-probe"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[lib]
+crate-type = ["rlib", "cdylib"]
+
+[profile.release]
+lto = "thin"
+codegen-units = 1
