@@ -52,9 +52,12 @@ test("actual browser: author publishes, guest reads, member saves place", {timeo
         new URL(response.url()).pathname === "/register"),
       author.getByRole("button", {name:"Создать учётную запись"}).click({noWaitAfter:true})
     ]);
-    assert.equal(registration.status(), 303,
-      "Registration response: HTTP " + registration.status() + " request=" + JSON.stringify(requests) + " " +
-      (await registration.text()).slice(0,500));
+    const registrationStatus = registration.status();
+    if (registrationStatus !== 303) {
+      const details = await registration.text().catch(() => "<response body unavailable>");
+      assert.fail("Registration response: HTTP " + registrationStatus +
+        " request=" + JSON.stringify(requests) + " " + details.slice(0,500));
+    }
     await author.waitForURL("**/me");
 
     assert.match(await author.locator("body").innerText(),/Browser Author/);
