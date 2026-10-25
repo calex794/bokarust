@@ -141,6 +141,15 @@ jobs:
           cmp "$D/before-restart.frst" "$D/after-restart.frst"
           cmp "$D/server.frst" "$D/after-restart.frst"
           echo "PASS: TCP CAS conflict, exact replay, lost ACK and restart"
+      - name: Concurrent clients and independent-node divergence
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE=experiments/front-rust-ui-compare/interactive
+          export CARGO_TARGET_DIR="$RUNNER_TEMP/front-rust-interactive"
+          cargo build --manifest-path "$BASE/Cargo.toml" --bin snapshot-cli --bin snapshot-net
+          python3 "$BASE/scripts/network-multi-node.py"             "$CARGO_TARGET_DIR/debug/snapshot-cli"             "$CARGO_TARGET_DIR/debug/snapshot-net"             "$BASE/results/network-multi-node.json"
+          python3 -m json.tool "$BASE/results/network-multi-node.json" > /dev/null
       - name: Preserve evidence on success or failure
         if: always()
         uses: actions/upload-artifact@v4
